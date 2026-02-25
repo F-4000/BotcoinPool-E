@@ -87,12 +87,44 @@ export default function PoolPage() {
   const { isSuccess: transferOwnershipOk } = useWaitForTransactionReceipt({ hash: transferOwnershipTx });
 
   useEffect(() => {
-    if (approveOk || depositOk || withdrawOk || claimOk || triggerOk || setFeeOk || setOperatorOk || transferOwnershipOk) {
+    if (approveOk) {
+      refetchAllowance();
+    }
+  }, [approveOk, refetchAllowance]);
+
+  useEffect(() => {
+    if (depositOk) {
       refetchActive(); refetchStakeInfo(); refetchReward();
       refetchBalance(); refetchAllowance();
-      setDepositAmount(""); setWithdrawAmount("");
+      setDepositAmount("");
     }
-  }, [approveOk, depositOk, withdrawOk, claimOk, triggerOk, setFeeOk, setOperatorOk, transferOwnershipOk, refetchActive, refetchStakeInfo, refetchReward, refetchBalance, refetchAllowance]);
+  }, [depositOk, refetchActive, refetchStakeInfo, refetchReward, refetchBalance, refetchAllowance]);
+
+  useEffect(() => {
+    if (withdrawOk) {
+      refetchActive(); refetchStakeInfo(); refetchReward();
+      refetchBalance();
+      setWithdrawAmount("");
+    }
+  }, [withdrawOk, refetchActive, refetchStakeInfo, refetchReward, refetchBalance]);
+
+  useEffect(() => {
+    if (claimOk) {
+      refetchReward(); refetchBalance();
+    }
+  }, [claimOk, refetchReward, refetchBalance]);
+
+  useEffect(() => {
+    if (triggerOk) {
+      refetchActive(); refetchStakeInfo(); refetchReward();
+    }
+  }, [triggerOk, refetchActive, refetchStakeInfo, refetchReward]);
+
+  useEffect(() => {
+    if (setFeeOk || setOperatorOk || transferOwnershipOk) {
+      refetchActive();
+    }
+  }, [setFeeOk, setOperatorOk, transferOwnershipOk, refetchActive]);
 
   // ── Derived ──
   const userActive = stakeInfo?.[0] ?? 0n;

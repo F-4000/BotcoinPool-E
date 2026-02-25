@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
 import { factoryAbi } from "@/lib/contracts";
@@ -18,6 +18,15 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
 
   const { writeContract, data: txHash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Auto-refresh pool list once tx confirms
+  useEffect(() => {
+    if (isSuccess && onCreated) {
+      // Small delay to let the RPC catch up, then signal parent
+      const timer = setTimeout(() => onCreated(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess, onCreated]);
 
   function handleCreate() {
     if (!operatorAddr) return;

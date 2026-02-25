@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useAccount } from "wagmi";
 import PoolList from "@/components/PoolList";
 import CreatePool from "@/components/CreatePool";
@@ -9,7 +9,13 @@ import { FACTORY_ADDRESS } from "@/lib/config";
 
 export default function Home() {
   const [showCreate, setShowCreate] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { isConnected } = useAccount();
+
+  const handleCreated = useCallback(() => {
+    setShowCreate(false);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -50,7 +56,7 @@ export default function Home() {
       </div>
 
       {/* Create pool form */}
-      {showCreate && <CreatePool onCreated={() => setShowCreate(false)} />}
+      {showCreate && <CreatePool onCreated={handleCreated} />}
 
       {/* Pool list */}
       <div>
@@ -65,7 +71,7 @@ export default function Home() {
             </button>
           )}
         </div>
-        <PoolList />
+        <PoolList refreshKey={refreshKey} />
       </div>
     </div>
   );

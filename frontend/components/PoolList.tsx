@@ -6,12 +6,13 @@ import { factoryAbi, poolAbi } from "@/lib/contracts";
 import { FACTORY_ADDRESS } from "@/lib/config";
 import PoolRow from "@/components/PoolCard";
 
-export default function PoolList() {
+export default function PoolList({ refreshKey }: { refreshKey?: number }) {
   const { isConnected } = useAccount();
   const { data: pools, isLoading, isError } = useReadContract({
     address: FACTORY_ADDRESS,
     abi: factoryAbi,
     functionName: "getPools",
+    query: { refetchInterval: refreshKey ? 3000 : false },
   });
 
   // Batch-read totalActiveStake + globalPendingStake for every pool (multicall)
