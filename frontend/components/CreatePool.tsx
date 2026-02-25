@@ -28,9 +28,14 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
     }
   }, [isSuccess, onCreated]);
 
+  const capNum = Number(maxStakeM) || 0;
+  const feeNum = Number(feeBps) || 0;
+  const overCap = capNum > 100;
+  const overFee = feeNum > 1000;
+
   function handleCreate() {
-    if (!operatorAddr) return;
-    const cap = maxStakeM ? parseEther((Number(maxStakeM) * 1_000_000).toString()) : 0n;
+    if (!operatorAddr || overCap || overFee) return;
+    const cap = maxStakeM ? parseEther((capNum * 1_000_000).toString()) : 0n;
     writeContract({
       address: FACTORY_ADDRESS,
       abi: factoryAbi,
@@ -85,11 +90,14 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
             max="1000"
             placeholder="50"
             value={feeBps}
-            onChange={(e) => setFeeBps(e.target.value)}
+            onChange={(e) => {
+              const v = Math.min(1000, Math.max(0, Number(e.target.value)));
+              setFeeBps(e.target.value === "" ? "" : String(v));
+            }}
             className="pool-input w-full px-3 py-2.5 text-sm"
           />
           <p className="mt-1 text-[11px] text-muted">
-            {feeBps ? `${Number(feeBps) / 100}%` : "0%"} of rewards · Max 1000 bps (10%)
+            {`${feeNum / 100}% of rewards · Max 1000 bps (10%)`}
           </p>
         </div>
         <div>
@@ -97,13 +105,20 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
           <input
             type="number"
             min="0"
+            max="100"
             placeholder="75"
             value={maxStakeM}
-            onChange={(e) => setMaxStakeM(e.target.value)}
+            onChange={(e) => {
+              const v = Math.min(100, Math.max(0, Number(e.target.value)));
+              setMaxStakeM(e.target.value === "" ? "" : String(v));
+            }}
             className="pool-input w-full px-3 py-2.5 text-sm"
           />
           <p className="mt-1 text-[11px] text-muted">
-            {maxStakeM ? `${Number(maxStakeM)}M BOTCOIN` : "Unlimited"} · immutable after creation
+            {maxStakeM
+              ? `${capNum}M BOTCOIN`
+              : "Unlimited"}
+            {" · immutable after creation"}
           </p>
         </div>
       </div>
@@ -117,7 +132,7 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
       <div className="flex items-center gap-3">
         <button
           onClick={handleCreate}
-          disabled={isPending || isConfirming || !operatorAddr}
+          disabled={isPending || isConfirming || !operatorAddr || overCap || overFee}
           className="btn-primary px-5 py-2.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isPending ? "Confirm in Wallet..." : isConfirming ? "Deploying..." : "Deploy Pool"}
