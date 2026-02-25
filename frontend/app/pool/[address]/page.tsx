@@ -300,6 +300,26 @@ export default function PoolPage() {
                     MAX
                   </button>
                 </div>
+
+                {/* Quick-pick percentage buttons */}
+                {tokenBalance && tokenBalance > 0n && (
+                  <div className="flex gap-2 mt-2">
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button
+                        key={pct}
+                        onClick={() => {
+                          const bal = tokenBalance;
+                          const raw = (bal * BigInt(pct)) / 100n;
+                          const max = isCapped && remaining < raw ? remaining : raw;
+                          setDepositAmount((Number(max) / 1e18).toString());
+                        }}
+                        className="flex-1 py-1 text-[11px] font-medium text-muted hover:text-text bg-white/5 hover:bg-white/10 rounded transition-colors cursor-pointer"
+                      >
+                        {pct === 100 ? "MAX" : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {overCap && (
