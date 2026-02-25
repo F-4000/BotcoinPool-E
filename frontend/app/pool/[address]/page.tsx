@@ -321,7 +321,7 @@ export default function PoolPage() {
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   {isDepositing ? "Depositing..." : "Deposit"}
                 </button>
-              )}}
+              )}
               <p className="text-center text-[11px] text-muted">Deposits activate next epoch</p>
             </div>
           ) : (
