@@ -18,6 +18,9 @@ export default function PoolPage() {
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
+  const [newFeeBps, setNewFeeBps] = useState("");
+  const [newOperator, setNewOperator] = useState("");
+  const [newOwner, setNewOwner] = useState("");
 
   // ── Pool reads ──
   const { data: totalActive, refetch: refetchActive } = useReadContract({
@@ -34,6 +37,12 @@ export default function PoolPage() {
   });
   const { data: stakingTokenAddr } = useReadContract({
     address, abi: poolAbi, functionName: "stakingToken",
+  });
+  const { data: owner } = useReadContract({
+    address, abi: poolAbi, functionName: "owner",
+  });
+  const { data: maxStake } = useReadContract({
+    address, abi: poolAbi, functionName: "maxStake",
   });
 
   // ── User reads ──
@@ -64,25 +73,32 @@ export default function PoolPage() {
   const { writeContract: withdraw, data: withdrawTx, isPending: isWithdrawing } = useWriteContract();
   const { writeContract: claim, data: claimTx, isPending: isClaiming } = useWriteContract();
   const { writeContract: triggerClaim, data: triggerTx, isPending: isTriggering } = useWriteContract();
+  const { writeContract: setFeeCall, data: setFeeTx, isPending: isSettingFee } = useWriteContract();
+  const { writeContract: setOperatorCall, data: setOperatorTx, isPending: isSettingOperator } = useWriteContract();
+  const { writeContract: transferOwnershipCall, data: transferOwnershipTx, isPending: isTransferring } = useWriteContract();
 
   const { isSuccess: approveOk } = useWaitForTransactionReceipt({ hash: approveTx });
   const { isSuccess: depositOk } = useWaitForTransactionReceipt({ hash: depositTx });
   const { isSuccess: withdrawOk } = useWaitForTransactionReceipt({ hash: withdrawTx });
   const { isSuccess: claimOk } = useWaitForTransactionReceipt({ hash: claimTx });
   const { isSuccess: triggerOk } = useWaitForTransactionReceipt({ hash: triggerTx });
+  const { isSuccess: setFeeOk } = useWaitForTransactionReceipt({ hash: setFeeTx });
+  const { isSuccess: setOperatorOk } = useWaitForTransactionReceipt({ hash: setOperatorTx });
+  const { isSuccess: transferOwnershipOk } = useWaitForTransactionReceipt({ hash: transferOwnershipTx });
 
   useEffect(() => {
-    if (approveOk || depositOk || withdrawOk || claimOk || triggerOk) {
+    if (approveOk || depositOk || withdrawOk || claimOk || triggerOk || setFeeOk || setOperatorOk || transferOwnershipOk) {
       refetchActive(); refetchStakeInfo(); refetchReward();
       refetchBalance(); refetchAllowance();
       setDepositAmount(""); setWithdrawAmount("");
     }
-  }, [approveOk, depositOk, withdrawOk, claimOk, triggerOk, refetchActive, refetchStakeInfo, refetchReward, refetchBalance, refetchAllowance]);
+  }, [approveOk, depositOk, withdrawOk, claimOk, triggerOk, setFeeOk, setOperatorOk, transferOwnershipOk, refetchActive, refetchStakeInfo, refetchReward, refetchBalance, refetchAllowance]);
 
   // ── Derived ──
   const userActive = stakeInfo?.[0] ?? 0n;
   const userPending = stakeInfo?.[1] ?? 0n;
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : 0;
+  const isOwner = userAddress && owner && userAddress.toLowerCase() === owner.toLowerCase();
 
   const depositWei = (() => {
     try { return depositAmount ? parseEther(depositAmount) : 0n; }
@@ -114,6 +130,22 @@ export default function PoolPage() {
       args: [[]],
     });
     triggerClaim({ address, abi: poolAbi, functionName: "triggerClaim", args: [claimCalldata] });
+  }
+  function handleSetFee() {
+    const bps = parseInt(newFeeBps);
+    if (!isNaN(bps) && bps >= 0) {
+      setFeeCall({ address, abi: poolAbi, functionName: "setFee", args: [BigInt(bps)] });
+    }
+  }
+  function handleSetOperator() {
+    if (newOperator && newOperator.startsWith("0x")) {
+      setOperatorCall({ address, abi: poolAbi, functionName: "setOperator", args: [newOperator as `0x${string}`] });
+    }
+  }
+  function handleTransferOwnership() {
+    if (newOwner && newOwner.startsWith("0x")) {
+      transferOwnershipCall({ address, abi: poolAbi, functionName: "transferOwnership", args: [newOwner as `0x${string}`] });
+    }
   }
 
   return (
@@ -152,6 +184,10 @@ export default function PoolPage() {
           <div>
             <span className="text-muted text-xs">Fee</span>
             <p className="text-warn font-semibold mt-0.5">{feePercent}%</p>
+          </div>
+          <div>
+            <span className="text-muted text-xs">Max Stake Cap</span>
+            <p className="text-text font-semibold mt-0.5">{maxStake ? fmtToken(maxStake) : "—"}</p>
           </div>
         </div>
 
@@ -302,6 +338,97 @@ export default function PoolPage() {
           </div>
         </div>
       </div>
+
+      {/* Admin Panel - only visible to owner */}
+      {isOwner && (
+        <div className="gradient-border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-1.5 w-1.5 rounded-full bg-warn pulse-dot" />
+            <span className="text-xs text-warn uppercase tracking-wide">Admin Panel</span>
+          </div>
+
+          <div className="space-y-5">
+            {/* Decrease Fee */}
+            <div>
+              <label className="text-xs text-muted block mb-1.5">Decrease Operator Fee</label>
+              <p className="text-[11px] text-text-dim mb-2">Current: {feePercent}% ({String(feeBps ?? 0)} bps) — can only decrease</p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="New fee in bps (e.g. 500 = 5%)"
+                  value={newFeeBps}
+                  onChange={(e) => setNewFeeBps(e.target.value)}
+                  className="pool-input flex-1 px-3 py-2.5 text-sm"
+                />
+                <button
+                  onClick={handleSetFee}
+                  disabled={isSettingFee || !newFeeBps}
+                  className="btn-warn px-5 py-2.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isSettingFee ? "Updating..." : "Set Fee"}
+                </button>
+              </div>
+              {setFeeOk && (
+                <p className="text-xs glow-success mt-2">✓ Fee decreased successfully</p>
+              )}
+            </div>
+
+            <div className="border-t border-border" />
+
+            {/* Set Operator */}
+            <div>
+              <label className="text-xs text-muted block mb-1.5">Change Operator</label>
+              <p className="text-[11px] text-text-dim mb-2">Current: {operator ? shortAddr(operator) : "—"}</p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="New operator address (0x...)"
+                  value={newOperator}
+                  onChange={(e) => setNewOperator(e.target.value)}
+                  className="pool-input flex-1 px-3 py-2.5 text-sm"
+                />
+                <button
+                  onClick={handleSetOperator}
+                  disabled={isSettingOperator || !newOperator}
+                  className="btn-warn px-5 py-2.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isSettingOperator ? "Updating..." : "Set Operator"}
+                </button>
+              </div>
+              {setOperatorOk && (
+                <p className="text-xs glow-success mt-2">✓ Operator updated successfully</p>
+              )}
+            </div>
+
+            <div className="border-t border-border" />
+
+            {/* Transfer Ownership */}
+            <div>
+              <label className="text-xs text-muted block mb-1.5">Transfer Ownership</label>
+              <p className="text-[11px] text-error mb-2">⚠ This action is irreversible. You will lose admin access.</p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="New owner address (0x...)"
+                  value={newOwner}
+                  onChange={(e) => setNewOwner(e.target.value)}
+                  className="pool-input flex-1 px-3 py-2.5 text-sm"
+                />
+                <button
+                  onClick={handleTransferOwnership}
+                  disabled={isTransferring || !newOwner}
+                  className="btn-primary px-5 py-2.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-error/20 hover:bg-error/30 border-error/50"
+                >
+                  {isTransferring ? "Transferring..." : "Transfer"}
+                </button>
+              </div>
+              {transferOwnershipOk && (
+                <p className="text-xs glow-success mt-2">✓ Ownership transferred</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

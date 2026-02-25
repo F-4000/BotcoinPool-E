@@ -26,7 +26,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     uint256 public feeBps;
     uint256 public constant MAX_FEE_BPS = 1000;
 
-    // Pool stake cap — 0 means unlimited
+    // Pool stake cap — 0 means unlimited (immutable once deployed)
     uint256 public immutable maxStake;
 
     // Protocol fee — taken before operator fee, sent to protocol treasury
@@ -61,6 +61,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     event RewardsDistributed(uint256 amount);
     event OperatorChanged(address indexed previousOperator, address indexed newOperator);
     event FeeUpdated(uint256 newFeeBps);
+    event MaxStakeUpdated(uint256 newMaxStake);
     event Submitted(address indexed target, bool success, bytes data);
     event ClaimSelectorUpdated(bytes4 indexed selector, bool allowed);
 
@@ -314,7 +315,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     }
     
     function setFee(uint256 _feeBps) external onlyOwner {
-        require(_feeBps <= MAX_FEE_BPS, "Fee too high");
+        require(_feeBps < feeBps, "Fee can only decrease");
         feeBps = _feeBps;
         emit FeeUpdated(_feeBps);
     }

@@ -14,7 +14,7 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
   const { address: userAddress } = useAccount();
   const [operatorAddr, setOperatorAddr] = useState(userAddress ?? "");
   const [feeBps, setFeeBps] = useState("50"); // 0.5% default
-  const [maxStakeM, setMaxStakeM] = useState("75"); // 75M default
+  const [maxStakeM, setMaxStakeM] = useState("100"); // 100M default
 
   const { writeContract, data: txHash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
