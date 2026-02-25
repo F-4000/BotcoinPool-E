@@ -94,7 +94,7 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
             className="pool-input w-full px-3 py-2.5 text-sm"
           />
           <p className="mt-1 text-[11px] text-muted">
-            {maxStakeM ? `${Number(maxStakeM)}M BOTCOIN` : "Unlimited"} · 3x bonus caps at 75M
+            {maxStakeM ? `${Number(maxStakeM)}M BOTCOIN` : "Unlimited"} · immutable after creation
           </p>
         </div>
       </div>
