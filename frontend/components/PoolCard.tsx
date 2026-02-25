@@ -6,11 +6,21 @@ import { poolAbi } from "@/lib/contracts";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 
-interface PoolRowProps {
-  address: `0x${string}`;
+/** Compact number display */
+function compactNum(n: number): string {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return n.toFixed(0);
 }
 
-export default function PoolRow({ address }: PoolRowProps) {
+interface PoolRowProps {
+  address: `0x${string}`;
+  credits?: bigint;
+  sharePercent?: number;
+}
+
+export default function PoolRow({ address, credits, sharePercent }: PoolRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const { data: totalActive } = useReadContract({
@@ -58,6 +68,17 @@ export default function PoolRow({ address }: PoolRowProps) {
         {/* Fee */}
         <span className="text-xs text-warn font-medium w-16 text-right hidden sm:block">
           {feePercent !== undefined ? `${feePercent}%` : "—"}
+        </span>
+
+        {/* Credits / Share */}
+        <span className={`text-xs font-tabular w-16 text-right hidden sm:block ${
+          credits && credits > 0n ? "text-success font-semibold" : "text-muted"
+        }`}>
+          {credits && credits > 0n
+            ? sharePercent !== undefined && sharePercent > 0
+              ? `${sharePercent.toFixed(1)}%`
+              : compactNum(Number(credits))
+            : "—"}
         </span>
 
         {/* Cap bar (inline, compact) */}
@@ -112,6 +133,18 @@ export default function PoolRow({ address }: PoolRowProps) {
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Operator Fee</p>
               <p className="text-text font-semibold font-tabular">{feePercent !== undefined ? `${feePercent}%` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Credits (epoch)</p>
+              <p className="text-text font-semibold font-tabular">
+                {credits && credits > 0n ? compactNum(Number(credits)) : "0"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Reward Share</p>
+              <p className={`font-semibold font-tabular ${sharePercent && sharePercent > 0 ? "text-success" : "text-muted"}`}>
+                {sharePercent && sharePercent > 0 ? `${sharePercent.toFixed(1)}%` : "—"}
+              </p>
             </div>
             {isCapped && (
               <div>
