@@ -89,13 +89,7 @@ export const poolAbi = [
     stateMutability: "view",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "totalPendingStake",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
+
   {
     inputs: [],
     name: "feeBps",
@@ -152,6 +146,37 @@ export const poolAbi = [
     inputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
     name: "allowedClaimSelectors",
     outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
+    name: "allowedOperatorSelectors",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "bytes4", name: "selector", type: "bytes4" },
+      { internalType: "bool", name: "allowed", type: "bool" },
+    ],
+    name: "setAllowedOperatorSelector",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "userActivatedEpoch",
+    outputs: [{ internalType: "uint64", name: "", type: "uint64" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "MINING_MAX_STAKE",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },

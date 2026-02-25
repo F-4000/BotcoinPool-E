@@ -42,6 +42,10 @@ contract BotcoinPoolFactory {
      * @param _maxStake Maximum total stake allowed in the pool (0 = unlimited)
      */
     function createPool(address _operator, uint256 _feeBps, uint256 _maxStake) external returns (address) {
+        // Enforce mining contract max (100M BOTCOIN)
+        uint256 miningMax = 100_000_000 * 1e18;
+        require(_maxStake == 0 || _maxStake <= miningMax, "Exceeds mining max stake");
+
         // Deploy new pool
         BotcoinPool newPool = new BotcoinPool(
             stakingToken,

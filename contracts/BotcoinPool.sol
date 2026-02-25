@@ -40,7 +40,6 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     mapping(address => uint256) public userActiveStake;
 
     // Pending stake: Waiting for next epoch to become active
-    uint256 public totalPendingStake;
     mapping(address => uint256) public userPendingStake;
     mapping(address => uint64) public lastDepositEpoch; // Track when pending was added
 
@@ -49,8 +48,15 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
 
-    // --- Selector Whitelist (for trustless public claiming) ---
-    mapping(bytes4 => bool) public allowedClaimSelectors;
+    // --- Selector Whitelists ---
+    mapping(bytes4 => bool) public allowedClaimSelectors;    // for triggerClaim
+    mapping(bytes4 => bool) public allowedOperatorSelectors;  // for submitToMiningContract
+
+    // Track the epoch when user stake became active (for withdrawal lock)
+    mapping(address => uint64) public userActivatedEpoch;
+
+    // Mining contract max stake (100M BOTCOIN)
+    uint256 public constant MINING_MAX_STAKE = 100_000_000 * 1e18;
 
     // EIP-1271 Magic Value
     bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
@@ -61,9 +67,9 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     event RewardsDistributed(uint256 amount);
     event OperatorChanged(address indexed previousOperator, address indexed newOperator);
     event FeeUpdated(uint256 newFeeBps);
-    event MaxStakeUpdated(uint256 newMaxStake);
     event Submitted(address indexed target, bool success, bytes data);
     event ClaimSelectorUpdated(bytes4 indexed selector, bool allowed);
+    event OperatorSelectorUpdated(bytes4 indexed selector, bool allowed);
 
     constructor(
         address _stakingToken,
@@ -89,49 +95,6 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
 
     modifier updateState(address account) {
         uint64 currentEpoch = uint64(miningContract.currentEpoch());
-
-        // 1. Process Global Pending -> Active transition if needed?
-        // Actually, we process USER transitions here because rewards depend on userActiveStake.
-        // But for rewardPerToken calculation, we need accurate totalActiveStake.
-        
-        // This is tricky. If we rely on lazy updates, totalActiveStake might be stale when rewards come in.
-        // Constraint: We can't iterate all users.
-        // Solution: We don't move pending to active globally until interactions happen.
-        // BUT `rewardPerToken` uses `totalActiveStake`.
-        // If pending stake from last epoch isn't moved to active yet, `rewardPerToken` will be calculated with OLD active stake.
-        // This favors old stakers (higher reward per token) and hurts new stakers (who aren't active yet?).
-        // WAIT. If I deposited in Epoch 99, I expect to be active in Epoch 100.
-        // If rewards for Epoch 100 arrive, they are divided by `totalActiveStake`.
-        // My stake SHOULD be in there.
-        
-        // Revised Approach:
-        // We track `totalPendingStake` and `lastPendingUpdateEpoch`.
-        // If `currentEpoch > lastPendingUpdateEpoch`:
-        //    `totalActiveStake += totalPendingStake`
-        //    `totalPendingStake = 0` (But this is wrong, because new checks come in for current epoch)
-        
-        // We need 2 buckets: `stakeNextEpoch` and `stakeCurrent`.
-        // Actually, simplest model is:
-        // Deposit -> `pending[user]`, recording epoch.
-        // Withdraw -> check logic.
-        // Distribute Rewards -> The difficulty is knowing the PRECISE denominator for the epoch being rewarded.
-        // If we assume `claimRewards` is called for a specific Past Verify epoch, we can perhaps just use the snapshot?
-        // No, standard `rewardPerToken` (Synthetix style) updates strictly on interaction.
-        
-        // Let's stick to the prompt's implied requirement: "Deposits separate from Active until next epoch".
-        // To make `totalActiveStake` correct without iteration, we can't easily do it unless we force an update or use a different mechanism.
-        // TRADEOFF: We will move `userPending` to `userActive` only when the USER interacts.
-        // IMPLICATION: `totalActiveStake` will effectively Lag. This is a known issue in lazy accounting.
-        // FIX: We can track `totalPending` and `pendingEpoch`.
-        // If `currentEpoch > pendingEpoch`, we know ALL that pending is now active.
-        // So `effectiveTotalActive = totalActive + (currentEpoch > pendingEpoch ? totalPending : 0)`.
-        // But if we have multiple epochs of pending... we need a queue? No, just one pending bucket is usually enough if we clear it.
-        
-        // Let's use the `effective` strategy for `rewardPerToken`.
-        // But we have strictly 2 states: 
-        // 1. Amount locked for NEXT epoch.
-        // 2. Amount active NOW.
-        
         _updateUser(account, currentEpoch);
         _;
     }
@@ -167,13 +130,13 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
             if (userPendingStake[account] > 0 && currentEpoch > lastDepositEpoch[account]) {
                 userActiveStake[account] += userPendingStake[account];
                 userPendingStake[account] = 0;
+                // Record when this stake became active (for withdrawal lock)
+                userActivatedEpoch[account] = currentEpoch;
             }
         }
     }
     
-    // Simplify: We don't use time-based accrual. We only accrue when REWARDS are added.
-    // So `rewardPerTokenStored` doesn't change just by reading it. It changes in `triggerClaim`.
-
+    // Reward calculation — only accrues when rewards are added via triggerClaim.
     function _rewardPerToken() internal view returns (uint256) {
         return rewardPerTokenStored;
     }
@@ -188,28 +151,19 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
         
         _updateUser(msg.sender, currentEpoch);
 
-        // Enforce pool cap (0 = unlimited)
+        // Enforce pool cap (0 = unlimited), also hard-capped at mining contract limit
+        uint256 effectiveTotal = totalActiveStake + globalPendingStake + amount;
+        require(effectiveTotal <= MINING_MAX_STAKE, "Exceeds mining contract limit");
         if (maxStake > 0) {
-            uint256 effectiveTotal = totalActiveStake + globalPendingStake + amount;
             require(effectiveTotal <= maxStake, "Pool cap reached");
         }
 
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         
-        // Add to pending
+        // Add to pending — locked until next epoch
         userPendingStake[msg.sender] += amount;
         lastDepositEpoch[msg.sender] = currentEpoch;
-        
-        // Add to global pending (for next epoch)
-        // Note: If we just advanced epoch in _updateUser, globalPendingStake is 0.
-        // But wait, if I deposit in Epoch 100, and someone else deposits in Epoch 100, we aggregate.
-        // Correct.
         globalPendingStake += amount;
-        // Ensure global epoch tracks this batch
-        if (globalLastUpdateEpoch < currentEpoch) {
-             // Should have been handled by _updateUser, but strictly:
-             globalLastUpdateEpoch = currentEpoch;
-        }
 
         emit Staked(msg.sender, amount, currentEpoch, true);
     }
@@ -220,13 +174,10 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
         
         _updateUser(msg.sender, currentEpoch);
         
-        // Can only withdraw ACTIVE stake? 
-        // Tweet implies strict locking. Usually you can withdraw, but you forfeit rewards? 
-        // Or you strictly wait. "Locked until active".
-        // Let's allow withdrawing ACTIVE stake.
-        // What about pending? If I deposit by mistake, can I withdraw?
-        // Let's assume Pending is locked until next epoch to prevent flash loan attacks or gaming.
-        
+        // Withdrawal lock: stake deposited in epoch N becomes active in epoch N+1,
+        // and is locked through that active epoch. Withdrawable starting epoch N+2.
+        // This ensures deposits are locked for the full epoch they are "deposited for" per spec.
+        require(currentEpoch > userActivatedEpoch[msg.sender], "Stake locked through active epoch");
         require(userActiveStake[msg.sender] >= amount, "Insufficient active stake");
         
         userActiveStake[msg.sender] -= amount;
@@ -329,9 +280,21 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     }
 
     function submitToMiningContract(bytes calldata data) external onlyOperator nonReentrant {
+        require(data.length >= 4, "Calldata too short");
+        bytes4 selector = bytes4(data[:4]);
+        require(allowedOperatorSelectors[selector], "Selector not whitelisted");
+
         (bool success, bytes memory result) = address(miningContract).call(data);
         require(success, "Transaction failed");
         emit Submitted(address(miningContract), success, result);
+    }
+
+    /// @notice Owner adds or removes a function selector that the operator can call on the mining contract.
+    /// @param selector The 4-byte function selector
+    /// @param allowed  Whether the selector is permitted
+    function setAllowedOperatorSelector(bytes4 selector, bool allowed) external onlyOwner {
+        allowedOperatorSelectors[selector] = allowed;
+        emit OperatorSelectorUpdated(selector, allowed);
     }
 
     function isValidSignature(bytes32 _hash, bytes memory _signature) external view override returns (bytes4) {
