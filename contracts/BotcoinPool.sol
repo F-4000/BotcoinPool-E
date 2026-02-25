@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 
 interface IMiningContract {
-    function epochId() external view returns (uint64);
+    function currentEpoch() external view returns (uint256);
 }
 
 contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
@@ -88,7 +88,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     }
 
     modifier updateState(address account) {
-        uint64 currentEpoch = miningContract.epochId();
+        uint64 currentEpoch = uint64(miningContract.currentEpoch());
 
         // 1. Process Global Pending -> Active transition if needed?
         // Actually, we process USER transitions here because rewards depend on userActiveStake.
@@ -184,7 +184,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
 
     function deposit(uint256 amount) external nonReentrant {
         require(amount > 0, "Cannot deposit 0");
-        uint64 currentEpoch = miningContract.epochId();
+        uint64 currentEpoch = uint64(miningContract.currentEpoch());
         
         _updateUser(msg.sender, currentEpoch);
 
@@ -216,7 +216,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
 
     function withdraw(uint256 amount) external nonReentrant {
         require(amount > 0, "Cannot withdraw 0");
-        uint64 currentEpoch = miningContract.epochId();
+        uint64 currentEpoch = uint64(miningContract.currentEpoch());
         
         _updateUser(msg.sender, currentEpoch);
         
@@ -238,7 +238,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
     }
 
     function claimReward() external nonReentrant {
-        uint64 currentEpoch = miningContract.epochId();
+        uint64 currentEpoch = uint64(miningContract.currentEpoch());
         _updateUser(msg.sender, currentEpoch);
         
         uint256 reward = rewards[msg.sender];
@@ -287,7 +287,7 @@ contract BotcoinPool is Ownable, ReentrancyGuard, IERC1271 {
             
             // Distribute rest
             // IMPORTANT: We must update global state BEFORE distributing to ensure denominator is correct.
-            uint64 currentEpoch = miningContract.epochId();
+            uint64 currentEpoch = uint64(miningContract.currentEpoch());
             
             // We can't call _updateUser(msg.sender) because that updates msg.sender.
             // We need to update Global State specifically.

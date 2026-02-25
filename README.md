@@ -5,7 +5,7 @@ Decentralized mining pool protocol for [Botcoin](https://agentmoney.net/) on Bas
 - [Botcoin Wirepaper](https://agentmoney.net/wirepaper.md)
 - [Twitter / X](https://x.com/MineBotcoin)
 
-**Live on Base Mainnet** — Factory: [`0xE9B3b386Cc3A28e741F02b4da9e0F457555c7387`](https://basescan.org/address/0xE9B3b386Cc3A28e741F02b4da9e0F457555c7387)
+**Live on Base Mainnet** — Factory: [`0x61C30Bbb5A47B8286B0dFeFF9C84CE62caFC202F`](https://basescan.org/address/0x61C30Bbb5A47B8286B0dFeFF9C84CE62caFC202F)
 
 ## How It Works
 
