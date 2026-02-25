@@ -88,7 +88,8 @@ export default function PoolPage() {
     try { return depositAmount ? parseEther(depositAmount) : 0n; }
     catch { return 0n; }
   })();
-  const needsApproval = allowance !== undefined && depositWei > 0n && allowance < depositWei;
+  // Default to needing approval when allowance hasn't loaded yet to prevent failed deposits
+  const needsApproval = depositWei > 0n && (allowance === undefined || allowance < depositWei);
 
   // ── Handlers ──
   function handleApprove() {
