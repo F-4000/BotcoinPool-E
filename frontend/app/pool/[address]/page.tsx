@@ -142,6 +142,13 @@ export default function PoolPage() {
   // Default to needing approval when allowance hasn't loaded yet to prevent failed deposits
   const needsApproval = depositWei > 0n && (allowance === undefined || allowance < depositWei);
 
+  // Pool cap validation
+  const currentTotal = (totalActive ?? 0n) + (totalPending ?? 0n);
+  const isCapped = maxStake !== undefined && maxStake > 0n;
+  const remaining = isCapped ? (maxStake > currentTotal ? maxStake - currentTotal : 0n) : 0n;
+  const overCap = isCapped && depositWei > 0n && depositWei > remaining;
+  const poolFull = isCapped && remaining === 0n;
+
   // ── Handlers ──
   function handleApprove() {
     if (!stakingTokenAddr) return;
@@ -282,7 +289,12 @@ export default function PoolPage() {
                     className="pool-input w-full px-3 py-3 text-sm pr-14"
                   />
                   <button
-                    onClick={() => tokenBalance && setDepositAmount((Number(tokenBalance) / 1e18).toString())}
+                    onClick={() => {
+                      if (!tokenBalance) return;
+                      const bal = tokenBalance;
+                      const max = isCapped && remaining < bal ? remaining : bal;
+                      setDepositAmount((Number(max) / 1e18).toString());
+                    }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-accent hover:text-base-blue-light cursor-pointer font-medium"
                   >
                     MAX
@@ -290,19 +302,26 @@ export default function PoolPage() {
                 </div>
               </div>
 
+              {overCap && (
+                <p className="text-xs text-danger">Exceeds pool capacity — max {fmtToken(remaining)} remaining</p>
+              )}
+              {poolFull && !overCap && (
+                <p className="text-xs text-danger">Pool is full</p>
+              )}
+
               {!isConnected ? (
                 <p className="text-center text-xs text-muted">Connect wallet to deposit</p>
               ) : needsApproval ? (
-                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n}
+                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n || overCap || poolFull}
                   className="btn-warn w-full py-3 text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
                   {isApproving ? "Approving..." : "Approve BOTCOIN"}
                 </button>
               ) : (
-                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n}
+                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull}
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   {isDepositing ? "Depositing..." : "Deposit"}
                 </button>
-              )}
+              )}}
               <p className="text-center text-[11px] text-muted">Deposits activate next epoch</p>
             </div>
           ) : (
