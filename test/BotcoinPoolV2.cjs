@@ -128,7 +128,9 @@ describe("BotcoinPoolV2 Integration", function () {
     it("should reject if nothing to stake", async function () {
       await pool.stakeIntoMining(); // works (has TIER1 from beforeEach)
       // unstake cycle to get back to Idle
-      await pool.connect(bob).triggerUnstake();
+      await pool.connect(bob).requestUnstake();
+      await mining.setEpoch(2); // advance epoch
+      await pool.connect(bob).executeUnstake();
       await ethers.provider.send("evm_increaseTime", [86401]);
       await ethers.provider.send("evm_mine");
       await pool.connect(bob).finalizeWithdraw();
@@ -155,8 +157,19 @@ describe("BotcoinPoolV2 Integration", function () {
       // State: Active
       expect(await pool.poolState()).to.equal(1);
 
-      // Trigger unstake (permissionless)
-      await pool.connect(bob).triggerUnstake();
+      // Request unstake (permissionless)
+      await pool.connect(bob).requestUnstake();
+      expect(await pool.poolState()).to.equal(1); // still Active (waiting for epoch)
+      expect(await pool.unstakeRequestEpoch()).to.equal(1n); // requested at epoch 1
+
+      // Can't execute before epoch ends
+      await expect(pool.connect(bob).executeUnstake()).to.be.revertedWith("Epoch not ended");
+
+      // Advance epoch
+      await mining.setEpoch(2);
+
+      // Execute unstake (permissionless)
+      await pool.connect(bob).executeUnstake();
       expect(await pool.poolState()).to.equal(2); // Unstaking
 
       // Fast-forward past cooldown (1 day)
@@ -176,13 +189,27 @@ describe("BotcoinPoolV2 Integration", function () {
       expect(await pool.userDeposit(alice.address)).to.equal(0);
     });
 
-    it("should reject unstake when not Active", async function () {
-      await pool.connect(bob).triggerUnstake();
-      await expect(pool.connect(bob).triggerUnstake()).to.be.revertedWith("Pool not active");
+    it("should reject request when not Active", async function () {
+      await pool.connect(bob).requestUnstake();
+      await mining.setEpoch(2);
+      await pool.connect(bob).executeUnstake();
+      // Pool is now Unstaking
+      await expect(pool.connect(bob).requestUnstake()).to.be.revertedWith("Pool not active");
+    });
+
+    it("should reject duplicate unstake request", async function () {
+      await pool.connect(bob).requestUnstake();
+      await expect(pool.connect(bob).requestUnstake()).to.be.revertedWith("Unstake already requested");
+    });
+
+    it("should reject executeUnstake with no pending request", async function () {
+      await expect(pool.connect(bob).executeUnstake()).to.be.revertedWith("No unstake request");
     });
 
     it("should reject finalize before cooldown", async function () {
-      await pool.connect(bob).triggerUnstake();
+      await pool.connect(bob).requestUnstake();
+      await mining.setEpoch(2);
+      await pool.connect(bob).executeUnstake();
       await expect(pool.connect(bob).finalizeWithdraw()).to.be.revertedWith("Cooldown not expired");
     });
 
@@ -190,29 +217,6 @@ describe("BotcoinPoolV2 Integration", function () {
       await expect(
         pool.connect(alice).withdrawShare(TIER1)
       ).to.be.revertedWith("Funds staked in mining");
-    });
-  });
-
-  describe("Cancel Unstake", function () {
-    beforeEach(async function () {
-      await token.connect(alice).approve(await pool.getAddress(), TIER1);
-      await pool.connect(alice).deposit(TIER1);
-      await pool.stakeIntoMining();
-      await pool.connect(bob).triggerUnstake();
-    });
-
-    it("should allow owner to cancel unstake", async function () {
-      await pool.connect(owner).cancelUnstake();
-      expect(await pool.poolState()).to.equal(1); // back to Active
-    });
-
-    it("should allow operator to cancel unstake", async function () {
-      await pool.connect(operator).cancelUnstake();
-      expect(await pool.poolState()).to.equal(1);
-    });
-
-    it("should reject cancel from random user", async function () {
-      await expect(pool.connect(alice).cancelUnstake()).to.be.revertedWith("Not authorized");
     });
   });
 

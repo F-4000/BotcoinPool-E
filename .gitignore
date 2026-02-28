@@ -16,6 +16,7 @@ package-lock.json
 *:Zone.Identifier
 
 V2_TASKS.md
+v2_tasks.md
 
 # V1 contracts (obsolete)
 contracts/BotcoinPool.sol

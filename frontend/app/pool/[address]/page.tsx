@@ -51,6 +51,10 @@ export default function PoolPage() {
   const { data: stakingTokenAddr } = useReadContract({ address, abi: poolAbi, functionName: "stakingToken" });
   const { data: owner } = useReadContract({ address, abi: poolAbi, functionName: "owner" });
   const { data: maxStake } = useReadContract({ address, abi: poolAbi, functionName: "maxStake" });
+  const { data: unstakeRequestEpoch, refetch: refetchRequestEpoch } = useReadContract({
+    address, abi: poolAbi, functionName: "unstakeRequestEpoch",
+    query: { refetchInterval: 15_000 },
+  });
 
   // ── User info ──
   const { data: userInfo, refetch: refetchUserInfo } = useReadContract({
@@ -100,8 +104,8 @@ export default function PoolPage() {
   const { writeContract: withdrawShareCall, data: withdrawTx, isPending: isWithdrawing } = useWriteContract();
   const { writeContract: claimCall, data: claimTx, isPending: isClaiming } = useWriteContract();
   const { writeContract: stakeCall, data: stakeTx, isPending: isStaking } = useWriteContract();
-  const { writeContract: unstakeCall, data: unstakeTx, isPending: isUnstaking } = useWriteContract();
-  const { writeContract: cancelUnstakeCall, data: cancelTx, isPending: isCancelling } = useWriteContract();
+  const { writeContract: requestUnstakeCall, data: requestUnstakeTx, isPending: isRequesting } = useWriteContract();
+  const { writeContract: executeUnstakeCall, data: executeUnstakeTx, isPending: isExecutingUnstake } = useWriteContract();
   const { writeContract: finalizeCall, data: finalizeTx, isPending: isFinalizing } = useWriteContract();
   const { writeContract: triggerClaimCall, data: triggerTx, isPending: isTriggering } = useWriteContract();
   const { writeContract: triggerBonusCall, data: triggerBonusTx, isPending: isTriggeringBonus } = useWriteContract();
@@ -115,8 +119,8 @@ export default function PoolPage() {
   const { isSuccess: withdrawOk } = useWaitForTransactionReceipt({ hash: withdrawTx });
   const { isSuccess: claimOk } = useWaitForTransactionReceipt({ hash: claimTx });
   const { isSuccess: stakeOk } = useWaitForTransactionReceipt({ hash: stakeTx });
-  const { isSuccess: unstakeOk } = useWaitForTransactionReceipt({ hash: unstakeTx });
-  const { isSuccess: cancelOk } = useWaitForTransactionReceipt({ hash: cancelTx });
+  const { isSuccess: requestUnstakeOk } = useWaitForTransactionReceipt({ hash: requestUnstakeTx });
+  const { isSuccess: executeUnstakeOk } = useWaitForTransactionReceipt({ hash: executeUnstakeTx });
   const { isSuccess: finalizeOk } = useWaitForTransactionReceipt({ hash: finalizeTx });
   const { isSuccess: triggerOk } = useWaitForTransactionReceipt({ hash: triggerTx });
   const { isSuccess: triggerBonusOk } = useWaitForTransactionReceipt({ hash: triggerBonusTx });
@@ -131,15 +135,16 @@ export default function PoolPage() {
     refetchUserInfo();
     refetchBalance();
     refetchAllowance();
-  }, [refetchPoolInfo, refetchUserInfo, refetchBalance, refetchAllowance]);
+    refetchRequestEpoch();
+  }, [refetchPoolInfo, refetchUserInfo, refetchBalance, refetchAllowance, refetchRequestEpoch]);
 
   useEffect(() => { if (approveOk) refetchAllowance(); }, [approveOk, refetchAllowance]);
   useEffect(() => { if (depositOk) { refetchAll(); setDepositAmount(""); } }, [depositOk, refetchAll]);
   useEffect(() => { if (withdrawOk) { refetchAll(); setWithdrawAmount(""); } }, [withdrawOk, refetchAll]);
   useEffect(() => { if (claimOk) refetchAll(); }, [claimOk, refetchAll]);
   useEffect(() => { if (stakeOk) refetchAll(); }, [stakeOk, refetchAll]);
-  useEffect(() => { if (unstakeOk) refetchAll(); }, [unstakeOk, refetchAll]);
-  useEffect(() => { if (cancelOk) refetchAll(); }, [cancelOk, refetchAll]);
+  useEffect(() => { if (requestUnstakeOk) refetchAll(); }, [requestUnstakeOk, refetchAll]);
+  useEffect(() => { if (executeUnstakeOk) refetchAll(); }, [executeUnstakeOk, refetchAll]);
   useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk, refetchAll]);
   useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk, refetchAll]);
   useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk, refetchAll]);
@@ -222,11 +227,11 @@ export default function PoolPage() {
   function handleStakeIntoMining() {
     stakeCall({ address, abi: poolAbi, functionName: "stakeIntoMining" });
   }
-  function handleTriggerUnstake() {
-    unstakeCall({ address, abi: poolAbi, functionName: "triggerUnstake" });
+  function handleRequestUnstake() {
+    requestUnstakeCall({ address, abi: poolAbi, functionName: "requestUnstake" });
   }
-  function handleCancelUnstake() {
-    cancelUnstakeCall({ address, abi: poolAbi, functionName: "cancelUnstake" });
+  function handleExecuteUnstake() {
+    executeUnstakeCall({ address, abi: poolAbi, functionName: "executeUnstake" });
   }
   function handleFinalizeWithdraw() {
     finalizeCall({ address, abi: poolAbi, functionName: "finalizeWithdraw" });
@@ -352,22 +357,22 @@ export default function PoolPage() {
             {isStaking ? "Staking..." : "Stake → Mining"}
           </button>
 
-          {/* Trigger Unstake */}
+          {/* Request Unstake (queues for epoch end) */}
           <button
-            onClick={handleTriggerUnstake}
-            disabled={isUnstaking || !isConnected || poolStateName !== "Active"}
+            onClick={handleRequestUnstake}
+            disabled={isRequesting || !isConnected || poolStateName !== "Active" || (unstakeRequestEpoch !== undefined && unstakeRequestEpoch > 0n)}
             className="btn-ghost py-3 text-sm font-medium text-warn border-warn/30 hover:bg-warn/10 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isUnstaking ? "Unstaking..." : "Trigger Unstake"}
+            {isRequesting ? "Requesting..." : unstakeRequestEpoch && unstakeRequestEpoch > 0n ? "Unstake Queued" : "Request Unstake"}
           </button>
 
-          {/* Cancel Unstake (owner/operator only) */}
+          {/* Execute Unstake (after epoch ends) */}
           <button
-            onClick={handleCancelUnstake}
-            disabled={isCancelling || !isConnected || poolStateName !== "Unstaking"}
-            className="btn-ghost py-3 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+            onClick={handleExecuteUnstake}
+            disabled={isExecutingUnstake || !isConnected || poolStateName !== "Active" || !unstakeRequestEpoch || unstakeRequestEpoch === 0n || (epochNum !== undefined && epochNum <= Number(unstakeRequestEpoch))}
+            className="btn-ghost py-3 text-sm font-medium text-warn border-warn/30 hover:bg-warn/10 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isCancelling ? "Cancelling..." : "Cancel Unstake"}
+            {isExecutingUnstake ? "Executing..." : "Execute Unstake"}
           </button>
 
           {/* Finalize Withdraw */}
@@ -379,6 +384,20 @@ export default function PoolPage() {
             {isFinalizing ? "Finalizing..." : "Finalize Withdraw"}
           </button>
         </div>
+
+        {/* Unstake request status */}
+        {poolStateName === "Active" && unstakeRequestEpoch !== undefined && unstakeRequestEpoch > 0n && (
+          <div className="mt-3 flex items-center gap-2 text-sm">
+            <div className="h-1.5 w-1.5 rounded-full bg-warn pulse-dot" />
+            <span className="text-muted">Unstake requested at epoch</span>
+            <span className="text-warn font-semibold font-tabular">{Number(unstakeRequestEpoch)}</span>
+            {epochNum !== undefined && epochNum > Number(unstakeRequestEpoch) ? (
+              <span className="text-success font-medium">- Ready to execute</span>
+            ) : (
+              <span className="text-muted">- Waiting for epoch to end</span>
+            )}
+          </div>
+        )}
 
         {/* Cooldown timer */}
         {poolStateName === "Unstaking" && cooldownRemaining && (
@@ -392,8 +411,8 @@ export default function PoolPage() {
         )}
 
         {stakeOk && <p className="mt-2 text-xs glow-success">✓ Staked into mining</p>}
-        {unstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake triggered, cooldown started</p>}
-        {cancelOk && <p className="mt-2 text-xs glow-success">✓ Unstake cancelled, back to mining</p>}
+        {requestUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake requested, waiting for epoch end</p>}
+        {executeUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake executed, cooldown started</p>}
         {finalizeOk && <p className="mt-2 text-xs glow-success">✓ Withdraw finalized, funds back in pool</p>}
       </div>
 

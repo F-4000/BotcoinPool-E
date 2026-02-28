@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 interface IMiningV2 {
     function stake(uint256 amount) external;
     function unstake() external;
-    function cancelUnstake() external;
     function withdraw() external;
     function claim(uint64[] calldata epochIds) external;
 
@@ -87,12 +86,15 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     // Operator selector whitelist (for submitReceipt forwarding)
     mapping(bytes4 => bool) public allowedOperatorSelectors;
 
+    // Epoch-boundary unstake gating
+    uint64 public unstakeRequestEpoch; // 0 = no pending request
+
     // ── Events ───────────────────────────────────────────────────────
     event Deposited(address indexed user, uint256 amount);
     event ShareWithdrawn(address indexed user, uint256 amount);
     event StakedIntoMining(uint256 amount, uint256 totalStaked);
-    event UnstakeTriggered(uint64 epoch);
-    event UnstakeCancelled();
+    event UnstakeRequested(uint64 epoch);
+    event UnstakeExecuted(uint64 epoch);
     event WithdrawFinalized(uint256 amount);
     event RewardsClaimed(uint256 regular, uint256 bonus);
     event RewardsDistributed(uint256 amount);
@@ -193,26 +195,31 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  3. UNSTAKE — permissionless at epoch boundary
+    //  3. UNSTAKE — permissionless, epoch-boundary gated
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Trigger unstake from MiningV2. Permissionless — anyone
-    ///         can call. Begins the cooldown period.
-    function triggerUnstake() external nonReentrant {
+    /// @notice Request an unstake. Permissionless — anyone can call.
+    ///         The request is queued for the current epoch. The actual
+    ///         unstake can only be executed after the epoch advances.
+    function requestUnstake() external nonReentrant {
         require(poolState == PoolState.Active, "Pool not active");
-        mining.unstake();
-        _setPoolState(PoolState.Unstaking);
-        emit UnstakeTriggered(mining.currentEpoch());
+        require(unstakeRequestEpoch == 0, "Unstake already requested");
+        unstakeRequestEpoch = mining.currentEpoch();
+        emit UnstakeRequested(unstakeRequestEpoch);
     }
 
-    /// @notice Owner/operator can cancel a pending unstake if cooldown
-    ///         has not expired, returning the pool to Active mining.
-    function cancelUnstake() external nonReentrant {
-        require(msg.sender == owner() || msg.sender == operator, "Not authorized");
-        require(poolState == PoolState.Unstaking, "Not unstaking");
-        mining.cancelUnstake();
-        _setPoolState(PoolState.Active);
-        emit UnstakeCancelled();
+    /// @notice Execute a pending unstake request. Permissionless.
+    ///         Only succeeds after the epoch in which the request was
+    ///         made has ended, preventing mid-epoch unstake griefing.
+    function executeUnstake() external nonReentrant {
+        require(poolState == PoolState.Active, "Pool not active");
+        require(unstakeRequestEpoch > 0, "No unstake request");
+        require(mining.currentEpoch() > unstakeRequestEpoch, "Epoch not ended");
+
+        unstakeRequestEpoch = 0;
+        mining.unstake();
+        _setPoolState(PoolState.Unstaking);
+        emit UnstakeExecuted(mining.currentEpoch());
     }
 
     // ═══════════════════════════════════════════════════════════════════

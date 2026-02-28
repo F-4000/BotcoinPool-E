@@ -29,5 +29,14 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "minimatch": "10.2.3",
+    "eslint": {
+      "minimatch": "3.1.4"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "10.2.3"
+    }
   }
 }

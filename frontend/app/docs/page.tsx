@@ -68,10 +68,11 @@ export default function DocsPage() {
             Credits accrue to the pool contract address. During this phase, deposits
             and withdrawals are locked.
           </Step>
-          <Step num={4} title="Trigger Unstake" state="Active → Unstaking">
-            Anyone can trigger an unstake. The pool calls <Code>mining.unstake()</Code>,
-            which starts a cooldown period (1-3 days). Mining eligibility is lost
-            immediately.
+          <Step num={4} title="Request + Execute Unstake" state="Active → Unstaking">
+            Anyone can request an unstake at any time. The request is queued until the
+            current epoch ends. Once it ends, anyone can execute the unstake, which
+            calls <Code>mining.unstake()</Code> and starts the cooldown period (1-3 days).
+            This prevents mid-epoch griefing while keeping exits fully permissionless.
           </Step>
           <Step num={5} title="Finalize Withdraw" state="Unstaking → Idle">
             After cooldown expires, anyone can finalize the withdrawal. Tokens return
@@ -180,10 +181,10 @@ export default function DocsPage() {
             Yes. Each pool is an independent contract. You can spread your BOTCOIN
             across multiple pools.
           </Faq>
-          <Faq q="What is the Cancel Unstake button?">
-            The pool owner or operator can cancel a pending unstake (during cooldown)
-            to return the pool to Active mining. This is the only action restricted to
-            owner/operator. It exists to prevent accidental unstakes from disrupting mining.
+          <Faq q="Why is unstake a two-step process?">
+            The spec requires that unstaking only happens at epoch boundaries to prevent
+            mid-epoch griefing. Step 1 (Request) queues the intent, step 2 (Execute) fires
+            after the epoch ends. Both steps are fully permissionless - anyone can call them.
           </Faq>
         </div>
       </Section>
@@ -191,7 +192,7 @@ export default function DocsPage() {
       {/* Contract Addresses */}
       <Section title="Contract Addresses">
         <div className="space-y-2">
-          <AddrRow label="FactoryV2" addr="0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df" />
+          <AddrRow label="FactoryV2" addr="0x653EF59BA961f622385EA8012a5DCdf388790b6C" />
           <AddrRow label="BotcoinMiningV2" addr="0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716" />
           <AddrRow label="BonusEpoch" addr="0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8" />
           <AddrRow label="BOTCOIN Token" addr="0xA601877977340862Ca67f816eb079958E5bd0BA3" />
@@ -206,7 +207,7 @@ export default function DocsPage() {
         <div className="flex items-center gap-4 text-xs">
           <a href="https://github.com/F-4000/BotcoinPool-E" target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">GitHub Source</a>
-          <a href="https://basescan.org/address/0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df#code" target="_blank" rel="noopener noreferrer"
+          <a href="https://basescan.org/address/0x653EF59BA961f622385EA8012a5DCdf388790b6C#code" target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">Verified on BaseScan</a>
         </div>
         <Link href="/" className="text-xs text-muted hover:text-base-blue-light transition-colors">
