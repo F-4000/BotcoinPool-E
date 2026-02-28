@@ -53,7 +53,7 @@ export default function Header() {
   }, [menuOpen]);
 
   return (
-    <header className="border-b border-border bg-surface/80 backdrop-blur-xl sticky top-0 z-[100]">
+    <header className="border-b border-border bg-surface/80 backdrop-blur-xl sticky top-0 z-100">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 max-w-6xl mx-auto relative">
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-5">
@@ -134,7 +134,7 @@ export default function Header() {
                   </button>
 
                   {menuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-[rgba(17,24,39,0.85)] backdrop-blur-xl border border-indigo/15 p-2 shadow-xl shadow-black/40 z-[200]">
+                    <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-[rgba(17,24,39,0.85)] backdrop-blur-xl border border-indigo/15 p-2 shadow-xl shadow-black/40 z-200">
                       <div className="px-3 py-2 border-b border-border mb-1">
                         <p className="text-xs text-muted">Connected</p>
                         <p className="text-sm text-text font-tabular mt-0.5">{account.displayName}</p>

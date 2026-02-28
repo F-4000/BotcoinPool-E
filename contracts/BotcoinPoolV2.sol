@@ -50,8 +50,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     enum PoolState {
         Idle,        // No funds staked in mining; deposits accumulate
         Active,      // Funds staked, mining in progress
-        Unstaking,   // unstake() called on MiningV2; cooldown running
-        Withdrawable // cooldown expired; anyone can call finalizeWithdraw
+        Unstaking    // unstake() called on MiningV2; cooldown running
     }
 
     // ── Immutables ───────────────────────────────────────────────────
@@ -116,6 +115,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     ) Ownable(msg.sender) {
         require(_feeBps <= MAX_FEE_BPS, "Fee too high");
         require(_protocolFeeBps <= MAX_PROTOCOL_FEE_BPS, "Protocol fee too high");
+        require(_operator != address(0), "Zero operator");
         require(_protocolFeeRecipient != address(0), "Zero fee recipient");
         require(_maxStake <= MINING_MAX_STAKE, "Exceeds Tier 3");
 
@@ -259,6 +259,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     /// @notice Anyone can trigger a regular reward claim from MiningV2.
     ///         Rewards are distributed pro-rata to depositors net of fees.
     function triggerClaim(uint64[] calldata epochIds) external nonReentrant {
+        require(totalRewardableStake > 0, "No stakers");
         uint256 balBefore = stakingToken.balanceOf(address(this));
         mining.claim(epochIds);
         uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
@@ -271,6 +272,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
 
     /// @notice Anyone can trigger a bonus epoch reward claim.
     function triggerBonusClaim(uint64[] calldata epochIds) external nonReentrant {
+        require(totalRewardableStake > 0, "No stakers");
         uint256 balBefore = stakingToken.balanceOf(address(this));
         bonusEpoch.claimBonus(epochIds);
         uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
@@ -324,8 +326,14 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         bytes4 selector = bytes4(data[:4]);
         require(allowedOperatorSelectors[selector], "Selector not whitelisted");
 
-        (bool success, ) = address(mining).call(data);
-        require(success, "Mining call failed");
+        (bool success, bytes memory returnData) = address(mining).call(data);
+        if (!success) {
+            if (returnData.length > 0) {
+                assembly { revert(add(returnData, 32), mload(returnData)) }
+            } else {
+                revert("Mining call failed");
+            }
+        }
     }
 
     /// @notice EIP-1271: validate operator's signature for coordinator auth.
@@ -405,4 +413,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         emit PoolStateChanged(poolState, newState);
         poolState = newState;
     }
+
+    /// @dev Reject accidental ETH transfers.
+    receive() external payable { revert("No ETH"); }
 }

@@ -14,3 +14,34 @@ package-lock.json
 
 # WSL Zone.Identifier files
 *:Zone.Identifier
+
+V2_TASKS.md
+
+# V1 contracts (obsolete)
+contracts/BotcoinPool.sol
+contracts/BotcoinPoolFactory.sol
+
+# Mock/test contracts
+contracts/MockERC20.sol
+contracts/MockMining.sol
+contracts/MockMiningV2.sol
+contracts/MockBonusEpoch.sol
+
+# V1 scripts + tests
+scripts/deployFactory.js
+scripts/setup-frontend-base.cjs
+scripts/verify-full-system.cjs
+test/BotcoinIntegration.cjs
+
+# Mock / test-only contracts
+contracts/Mock*.sol
+
+# V1 contracts (obsolete)
+contracts/BotcoinPool.sol
+contracts/BotcoinPoolFactory.sol
+
+# V1 scripts & tests
+scripts/deployFactory.js
+scripts/setup-frontend-base.cjs
+scripts/verify-full-system.cjs
+test/BotcoinIntegration.cjs

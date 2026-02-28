@@ -6,13 +6,12 @@ import { poolAbi } from "@/lib/contracts";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 
-const POOL_STATES = ["Idle", "Active", "Unstaking", "Withdrawable"] as const;
+const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
 
 const STATE_BADGES: Record<string, { color: string; bg: string }> = {
   Idle: { color: "text-muted", bg: "bg-muted/10" },
   Active: { color: "text-success", bg: "bg-success/10" },
   Unstaking: { color: "text-warn", bg: "bg-warn/10" },
-  Withdrawable: { color: "text-base-blue-light", bg: "bg-base-blue/10" },
 };
 
 function compactNum(n: number): string {
@@ -72,7 +71,6 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
         <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
           stateName === "Active" ? "bg-success pulse-dot" :
           stateName === "Unstaking" ? "bg-warn pulse-dot" :
-          stateName === "Withdrawable" ? "bg-base-blue-light pulse-dot" :
           isFull ? "bg-danger" : "bg-muted"
         }`} />
 

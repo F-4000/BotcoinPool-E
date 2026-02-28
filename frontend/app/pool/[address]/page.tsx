@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
@@ -10,21 +10,19 @@ import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 
 // Pool states matching the Solidity enum
-const POOL_STATES = ["Idle", "Active", "Unstaking", "Withdrawable"] as const;
+const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
 type PoolStateName = (typeof POOL_STATES)[number];
 
 const STATE_COLORS: Record<PoolStateName, string> = {
   Idle: "text-muted",
   Active: "text-success",
   Unstaking: "text-warn",
-  Withdrawable: "text-base-blue-light",
 };
 
 const STATE_DOTS: Record<PoolStateName, string> = {
   Idle: "bg-muted",
   Active: "bg-success pulse-dot",
   Unstaking: "bg-warn pulse-dot",
-  Withdrawable: "bg-base-blue-light pulse-dot",
 };
 
 export default function PoolPage() {
@@ -128,23 +126,23 @@ export default function PoolPage() {
   const { isSuccess: setOpSelectorOk } = useWaitForTransactionReceipt({ hash: setOperatorSelectorTx });
 
   // Refetch on success
-  const refetchAll = () => {
+  const refetchAll = useCallback(() => {
     refetchPoolInfo();
     refetchUserInfo();
     refetchBalance();
     refetchAllowance();
-  };
+  }, [refetchPoolInfo, refetchUserInfo, refetchBalance, refetchAllowance]);
 
   useEffect(() => { if (approveOk) refetchAllowance(); }, [approveOk, refetchAllowance]);
-  useEffect(() => { if (depositOk) { refetchAll(); setDepositAmount(""); } }, [depositOk]);
-  useEffect(() => { if (withdrawOk) { refetchAll(); setWithdrawAmount(""); } }, [withdrawOk]);
-  useEffect(() => { if (claimOk) refetchAll(); }, [claimOk]);
-  useEffect(() => { if (stakeOk) refetchAll(); }, [stakeOk]);
-  useEffect(() => { if (unstakeOk) refetchAll(); }, [unstakeOk]);
-  useEffect(() => { if (cancelOk) refetchAll(); }, [cancelOk]);
-  useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk]);
-  useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk]);
-  useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk]);
+  useEffect(() => { if (depositOk) { refetchAll(); setDepositAmount(""); } }, [depositOk, refetchAll]);
+  useEffect(() => { if (withdrawOk) { refetchAll(); setWithdrawAmount(""); } }, [withdrawOk, refetchAll]);
+  useEffect(() => { if (claimOk) refetchAll(); }, [claimOk, refetchAll]);
+  useEffect(() => { if (stakeOk) refetchAll(); }, [stakeOk, refetchAll]);
+  useEffect(() => { if (unstakeOk) refetchAll(); }, [unstakeOk, refetchAll]);
+  useEffect(() => { if (cancelOk) refetchAll(); }, [cancelOk, refetchAll]);
+  useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk, refetchAll]);
+  useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk, refetchAll]);
+  useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk, refetchAll]);
 
   // ── Derived values ──
   const poolStateNum = poolInfo?.[0] ?? 0;
@@ -160,6 +158,8 @@ export default function PoolPage() {
 
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : 0;
   const isOwner = userAddress && owner && userAddress.toLowerCase() === owner.toLowerCase();
+
+  const poolNotIdle = poolStateName !== "Idle";
 
   const depositWei = (() => {
     try { return depositAmount ? parseEther(depositAmount) : 0n; }
@@ -228,10 +228,12 @@ export default function PoolPage() {
     finalizeCall({ address, abi: poolAbi, functionName: "finalizeWithdraw" });
   }
   function handleTriggerClaim() {
-    triggerClaimCall({ address, abi: poolAbi, functionName: "triggerClaim", args: [[]] });
+    if (epochNum === undefined) return;
+    triggerClaimCall({ address, abi: poolAbi, functionName: "triggerClaim", args: [[BigInt(epochNum)]] });
   }
   function handleTriggerBonusClaim() {
-    triggerBonusCall({ address, abi: poolAbi, functionName: "triggerBonusClaim", args: [[]] });
+    if (epochNum === undefined) return;
+    triggerBonusCall({ address, abi: poolAbi, functionName: "triggerBonusClaim", args: [[BigInt(epochNum)]] });
   }
   function handleSetFee() {
     const bps = parseInt(newFeeBps);
@@ -469,14 +471,14 @@ export default function PoolPage() {
               {!isConnected ? (
                 <p className="text-center text-xs text-muted">Connect wallet to deposit</p>
               ) : needsApproval ? (
-                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n || overCap || poolFull}
+                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n || overCap || poolFull || poolNotIdle}
                   className="btn-warn w-full py-3 text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
                   {isApproving ? "Approving..." : "Approve BOTCOIN"}
                 </button>
               ) : (
-                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull}
+                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull || poolNotIdle}
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isDepositing ? "Depositing..." : "Deposit"}
+                  {isDepositing ? "Depositing..." : poolNotIdle ? "Pool not Idle" : "Deposit"}
                 </button>
               )}
               <p className="text-center text-[11px] text-muted">

@@ -64,6 +64,12 @@ describe("BotcoinPoolV2 Integration", function () {
         factory.createPool(operator.address, 500, parseE(200_000_000))
       ).to.be.revertedWith("Exceeds mining max");
     });
+
+    it("should reject zero-address operator", async function () {
+      await expect(
+        factory.createPool(ethers.ZeroAddress, 500, TIER3)
+      ).to.be.revertedWith("Zero operator");
+    });
   });
 
   describe("Deposit", function () {
@@ -386,6 +392,23 @@ describe("BotcoinPoolV2 Integration", function () {
       const info = await pool.getUserInfo(alice.address);
       expect(info[0]).to.equal(TIER1); // depositAmt
       expect(info[2]).to.equal(10000n); // 100% share (only depositor)
+    });
+  });
+
+  describe("Safety Guards", function () {
+    it("should reject triggerClaim when no stakers", async function () {
+      // Pool is Idle with 0 deposits
+      await expect(pool.triggerClaim([1n])).to.be.revertedWith("No stakers");
+    });
+
+    it("should reject triggerBonusClaim when no stakers", async function () {
+      await expect(pool.triggerBonusClaim([1n])).to.be.revertedWith("No stakers");
+    });
+
+    it("should reject ETH transfers", async function () {
+      await expect(
+        owner.sendTransaction({ to: await pool.getAddress(), value: 1n })
+      ).to.be.reverted;
     });
   });
 });
