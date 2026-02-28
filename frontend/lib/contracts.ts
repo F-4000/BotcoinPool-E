@@ -126,6 +126,13 @@ export const poolAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "globalLastUpdateEpoch",
+    outputs: [{ internalType: "uint64", name: "", type: "uint64" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "bytes", name: "data", type: "bytes" }],
     name: "triggerClaim",
     outputs: [],
