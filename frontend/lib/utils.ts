@@ -2,7 +2,7 @@ import { formatUnits } from "viem";
 
 /** Format a bigint token amount to a human-readable string */
 export function fmtToken(value: bigint | undefined, decimals = 18, dp = 2): string {
-  if (value === undefined) return "—";
+  if (value === undefined) return "-";
   const formatted = formatUnits(value, decimals);
   const num = parseFloat(formatted);
   if (num === 0) return "0";

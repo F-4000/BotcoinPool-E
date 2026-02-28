@@ -239,14 +239,14 @@ export default function Scoreboard() {
 
                 {/* Credits this epoch */}
                 <span className="text-sm text-text font-tabular min-w-20 hidden sm:block">
-                  {row.credits > 0n ? compactNum(Number(row.credits)) : "—"}
+                  {row.credits > 0n ? compactNum(Number(row.credits)) : "-"}
                 </span>
 
                 {/* Share % */}
                 <span className={`text-xs font-tabular w-16 text-right hidden sm:block ${
                   row.sharePercent > 0 ? "text-success font-semibold" : "text-muted"
                 }`}>
-                  {row.sharePercent > 0 ? `${row.sharePercent.toFixed(1)}%` : "—"}
+                  {row.sharePercent > 0 ? `${row.sharePercent.toFixed(1)}%` : "-"}
                 </span>
 
                 {/* Total solves */}
@@ -277,11 +277,11 @@ export default function Scoreboard() {
       <div className="flex flex-wrap gap-4 text-[10px] text-muted px-1">
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-success pulse-dot" />
-          <span>Solving — earned credits this epoch</span>
+          <span>Solving: earned credits this epoch</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-muted" />
-          <span>Idle — no credits yet</span>
+          <span>Idle: no credits yet</span>
         </div>
         <span>Updates every 10s · all data from Base mainnet</span>
       </div>

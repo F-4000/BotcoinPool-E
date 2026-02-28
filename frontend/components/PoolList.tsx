@@ -129,11 +129,12 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
   if (!pools || pools.length === 0) {
     return (
       <div className="glass-card p-8 text-center">
-        <p className="text-text-dim text-sm mb-2">No pools found</p>
+        <div className="text-3xl mb-3 opacity-30">⛏</div>
+        <p className="text-text-dim text-sm mb-1">No pools yet</p>
         <p className="text-xs text-muted">
           {isConnected
-            ? 'Use the "+ Create Pool" button above to deploy the first pool.'
-            : "Connect your wallet and create the first pool."}
+            ? "Deploy the first pool using the button above."
+            : "Connect wallet to create a pool."}
         </p>
       </div>
     );

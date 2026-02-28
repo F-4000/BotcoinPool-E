@@ -7,7 +7,7 @@ import Header from "@/components/Header";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Botcoin Pool — Trustless Mining on Base",
+  title: "Botcoin Pool | Trustless Mining on Base",
   description: "Trustless mining pool for Botcoin on Base",
 };
 

@@ -91,12 +91,12 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
 
         {/* Fee */}
         <span className="text-xs text-warn font-medium w-16 text-right hidden sm:block">
-          {feePercent !== undefined ? `${feePercent}%` : "—"}
+          {feePercent !== undefined ? `${feePercent}%` : "-"}
         </span>
 
         {/* Tier */}
         <span className={`text-xs font-tabular w-10 text-right hidden sm:block ${tier > 0 ? "text-success font-semibold" : "text-muted"}`}>
-          {tier > 0 ? `T${tier}` : "—"}
+          {tier > 0 ? `T${tier}` : "-"}
         </span>
 
         {/* Credits / Share */}
@@ -107,7 +107,7 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
             ? sharePercent !== undefined && sharePercent > 0
               ? `${sharePercent.toFixed(1)}%`
               : compactNum(Number(credits))
-            : "—"}
+            : "-"}
         </span>
 
         {/* Cap bar */}
@@ -158,7 +158,7 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
             </div>
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Fee</p>
-              <p className="text-text font-semibold font-tabular">{feePercent !== undefined ? `${feePercent}%` : "—"}</p>
+              <p className="text-text font-semibold font-tabular">{feePercent !== undefined ? `${feePercent}%` : "-"}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Credits</p>

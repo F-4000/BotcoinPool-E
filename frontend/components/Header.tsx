@@ -58,7 +58,7 @@ export default function Header() {
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-5">
           <Link href="/" className="text-sm font-semibold text-text hover:text-base-blue-light transition-colors">
-            Botcoin Pool
+            Botcoin
           </Link>
 
           <nav className="hidden sm:flex items-center gap-1 text-xs">
@@ -67,6 +67,9 @@ export default function Header() {
             </Link>
             <Link href="/scoreboard" className="px-2.5 py-1.5 rounded-md text-text-dim hover:text-text hover:bg-white/5 transition-all">
               Scoreboard
+            </Link>
+            <Link href="/docs" className="px-2.5 py-1.5 rounded-md text-text-dim hover:text-text hover:bg-white/5 transition-all">
+              Docs
             </Link>
             {factorySet && (
               <a

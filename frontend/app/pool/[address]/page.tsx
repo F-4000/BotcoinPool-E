@@ -76,7 +76,7 @@ export default function PoolPage() {
   });
 
   // ── Mining reads ──
-  const currentEpoch = poolInfo?.[5];
+  const currentEpoch = poolInfo?.[4];
   const epochNum = currentEpoch !== undefined ? Number(currentEpoch) : undefined;
 
   const { data: poolCredits } = useReadContract({
@@ -143,6 +143,10 @@ export default function PoolPage() {
   useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk, refetchAll]);
   useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk, refetchAll]);
   useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk, refetchAll]);
+  useEffect(() => { if (setFeeOk) refetchAll(); }, [setFeeOk, refetchAll]);
+  useEffect(() => { if (setOperatorOk) refetchAll(); }, [setOperatorOk, refetchAll]);
+  useEffect(() => { if (transferOwnershipOk) refetchAll(); }, [transferOwnershipOk, refetchAll]);
+  useEffect(() => { if (setOpSelectorOk) refetchAll(); }, [setOpSelectorOk, refetchAll]);
 
   // ── Derived values ──
   const poolStateNum = poolInfo?.[0] ?? 0;
@@ -292,7 +296,7 @@ export default function PoolPage() {
           </div>
           <div>
             <span className="text-muted text-xs">Operator</span>
-            <p className="text-text font-medium mt-0.5">{operator ? shortAddr(operator) : "—"}</p>
+            <p className="text-text font-medium mt-0.5">{operator ? shortAddr(operator) : "-"}</p>
           </div>
           <div>
             <span className="text-muted text-xs">Fee</span>
@@ -325,7 +329,7 @@ export default function PoolPage() {
             <span>Epoch <span className="text-text font-tabular">{epochNum}</span></span>
             <span>Credits <span className="text-text font-tabular">{poolCredits ? Number(poolCredits).toLocaleString() : "0"}</span></span>
             <span>Reward Share <span className={`font-tabular ${creditShare > 0 ? "text-success font-semibold" : "text-muted"}`}>
-              {creditShare > 0 ? `${creditShare.toFixed(1)}%` : "—"}
+              {creditShare > 0 ? `${creditShare.toFixed(1)}%` : "-"}
             </span></span>
           </div>
         )}
@@ -335,7 +339,7 @@ export default function PoolPage() {
       <div className="gradient-border p-5">
         <p className="text-xs text-muted uppercase tracking-wide mb-3">Pool Lifecycle</p>
         <p className="text-sm text-text-dim mb-4 leading-relaxed">
-          All lifecycle actions are <span className="text-success font-medium">permissionless</span> — anyone can trigger them.
+          All lifecycle actions are <span className="text-success font-medium">permissionless</span>. Anyone can trigger them.
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -388,9 +392,9 @@ export default function PoolPage() {
         )}
 
         {stakeOk && <p className="mt-2 text-xs glow-success">✓ Staked into mining</p>}
-        {unstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake triggered — cooldown started</p>}
-        {cancelOk && <p className="mt-2 text-xs glow-success">✓ Unstake cancelled — back to mining</p>}
-        {finalizeOk && <p className="mt-2 text-xs glow-success">✓ Withdraw finalized — funds back in pool</p>}
+        {unstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake triggered, cooldown started</p>}
+        {cancelOk && <p className="mt-2 text-xs glow-success">✓ Unstake cancelled, back to mining</p>}
+        {finalizeOk && <p className="mt-2 text-xs glow-success">✓ Withdraw finalized, funds back in pool</p>}
       </div>
 
       {/* Action Panels */}
@@ -465,7 +469,7 @@ export default function PoolPage() {
                 )}
               </div>
 
-              {overCap && <p className="text-xs text-danger">Exceeds pool capacity — max {fmtToken(remaining)} remaining</p>}
+              {overCap && <p className="text-xs text-danger">Exceeds pool capacity. Max {fmtToken(remaining)} remaining.</p>}
               {poolFull && !overCap && <p className="text-xs text-danger">Pool is full</p>}
 
               {!isConnected ? (
@@ -586,7 +590,7 @@ export default function PoolPage() {
             {/* Decrease Fee */}
             <div>
               <label className="text-xs text-muted block mb-1.5">Decrease Operator Fee</label>
-              <p className="text-[11px] text-text-dim mb-2">Current: {feePercent}% ({String(feeBps ?? 0)} bps) — can only decrease</p>
+              <p className="text-[11px] text-text-dim mb-2">Current: {feePercent}% ({String(feeBps ?? 0)} bps). Can only decrease.</p>
               <div className="flex gap-3">
                 <input type="text" placeholder="New fee in bps" value={newFeeBps}
                   onChange={(e) => setNewFeeBps(e.target.value)}
@@ -604,7 +608,7 @@ export default function PoolPage() {
             {/* Set Operator */}
             <div>
               <label className="text-xs text-muted block mb-1.5">Change Operator</label>
-              <p className="text-[11px] text-text-dim mb-2">Current: {operator ? shortAddr(operator) : "—"}</p>
+              <p className="text-[11px] text-text-dim mb-2">Current: {operator ? shortAddr(operator) : "-"}</p>
               <div className="flex gap-3">
                 <input type="text" placeholder="New operator address (0x...)" value={newOperator}
                   onChange={(e) => setNewOperator(e.target.value)}
@@ -646,7 +650,7 @@ export default function PoolPage() {
             {/* Transfer Ownership */}
             <div>
               <label className="text-xs text-muted block mb-1.5">Transfer Ownership</label>
-              <p className="text-[11px] text-error mb-2">⚠ Irreversible — you will lose admin access.</p>
+              <p className="text-[11px] text-error mb-2">⚠ Irreversible. You will lose admin access.</p>
               <div className="flex gap-3">
                 <input type="text" placeholder="New owner address (0x...)" value={newOwner}
                   onChange={(e) => setNewOwner(e.target.value)}

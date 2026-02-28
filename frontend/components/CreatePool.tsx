@@ -8,9 +8,10 @@ import { FACTORY_ADDRESS } from "@/lib/config";
 
 interface CreatePoolProps {
   onCreated?: () => void;
+  onClose?: () => void;
 }
 
-export default function CreatePool({ onCreated }: CreatePoolProps) {
+export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
   const { address: userAddress } = useAccount();
   const [operatorAddr, setOperatorAddr] = useState(userAddress ?? "");
   const [feeBps, setFeeBps] = useState("50"); // 0.5% default
@@ -59,7 +60,7 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
             {txHash?.slice(0, 20)}...
           </a>
         </p>
-        <button onClick={onCreated} className="btn-ghost px-4 py-1.5 text-xs mt-3">
+        <button onClick={onClose ?? onCreated} className="btn-ghost px-4 py-1.5 text-xs mt-3">
           Close
         </button>
       </div>
@@ -137,7 +138,7 @@ export default function CreatePool({ onCreated }: CreatePoolProps) {
         >
           {isPending ? "Confirm in Wallet..." : isConfirming ? "Deploying..." : "Deploy Pool"}
         </button>
-        <button onClick={onCreated} className="text-sm text-muted hover:text-text transition-colors">
+        <button onClick={onClose ?? onCreated} className="text-sm text-muted hover:text-text transition-colors">
           Cancel
         </button>
       </div>

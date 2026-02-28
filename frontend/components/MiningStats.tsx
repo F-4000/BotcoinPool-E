@@ -162,8 +162,18 @@ export default function MiningStats() {
 
   if (isError || currentEpoch === undefined) {
     return (
-      <div className="glass-card p-4">
-        <p className="text-sm text-muted">Unable to fetch mining data from Base.</p>
+      <div className="gradient-border p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-text">
+            Mining <span className="glow-blue">Dashboard</span>
+          </h2>
+          <span className="text-[10px] text-muted font-tabular">Connecting...</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="shimmer h-20 rounded-lg" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -174,13 +184,12 @@ export default function MiningStats() {
   return (
     <div className="gradient-border p-5">
       {/* Section title */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-base-blue-light text-sm">⛏</span>
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-text">
           Mining <span className="glow-blue">Dashboard</span>
         </h2>
-        <span className="text-[10px] text-muted ml-auto font-tabular">
-          Live · Base Mainnet
+        <span className="text-[10px] text-muted font-tabular">
+          Live · Epoch {epochNum}
         </span>
       </div>
 
@@ -189,7 +198,7 @@ export default function MiningStats() {
         {/* Next Epoch Countdown */}
         <StatCard
           label="Next Epoch"
-          value={countdown !== undefined ? fmtCountdown(countdown) : "—"}
+          value={countdown !== undefined ? fmtCountdown(countdown) : "-"}
           sub={countdown !== undefined && countdown > 0 ? "countdown" : "transitioning"}
           accent="blue"
           pulse={countdown !== undefined && countdown <= 300}
@@ -198,7 +207,7 @@ export default function MiningStats() {
         {/* Current Epoch */}
         <StatCard
           label="Current Epoch"
-          value={epochNum?.toString() ?? "—"}
+          value={epochNum?.toString() ?? "-"}
           sub="active"
           accent="indigo"
         />
@@ -206,7 +215,7 @@ export default function MiningStats() {
         {/* Current Epoch Rewards */}
         <StatCard
           label="Epoch Rewards"
-          value={rewardNum > 0 ? compactNum(rewardNum) : "—"}
+          value={rewardNum > 0 ? compactNum(rewardNum) : "-"}
           sub="BOTCOIN est."
           accent="violet"
         />
@@ -214,7 +223,7 @@ export default function MiningStats() {
         {/* Total Mined */}
         <StatCard
           label="Total Mined"
-          value={totalNum > 0 ? compactNum(totalNum) : "—"}
+          value={totalNum > 0 ? compactNum(totalNum) : "-"}
           sub="BOTCOIN"
           accent="success"
         />

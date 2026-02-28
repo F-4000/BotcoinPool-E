@@ -17,52 +17,49 @@ export default function Home() {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  const handleCloseCreate = useCallback(() => {
+    setShowCreate(false);
+  }, []);
+
+  const factoryReady = FACTORY_ADDRESS !== "0x0000000000000000000000000000000000000000";
+
   return (
-    <div className="space-y-5 max-w-6xl mx-auto">
-      {/* Compact header */}
-      <div className="gradient-border p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Hero */}
+      <div className="gradient-border p-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold text-text">
-              Botcoin <span className="glow-blue">Mining Pool</span>
+            <h1 className="text-2xl font-bold text-text tracking-tight">
+              Botcoin <span className="glow-blue">Pool</span>
             </h1>
-            <p className="text-sm text-text-dim mt-1">
-              Trustless staking · O(1) gas · EIP-1271 · Base Mainnet
+            <p className="text-sm text-muted mt-1">
+              Trustless pooled mining on Base. Stake any amount, earn proportional rewards.
             </p>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="flex items-center gap-1.5 text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-success pulse-dot" />
+              Base Mainnet
+            </span>
+            <span className="text-border">|</span>
+            <span className="text-muted">EIP-1271</span>
+            <span className="text-border">|</span>
+            <span className="text-muted">O(1) Gas</span>
           </div>
         </div>
       </div>
 
-      {/* Info strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <InfoCell label="Network" value="Base L2" />
-        <InfoCell label="Architecture" value="O(1) Gas" />
-        <InfoCell label="Claiming" value="Trustless" />
-        <InfoCell label="Min Stake" value="25M / Pool" />
-      </div>
-
-      {/* Mining dashboard – live data from Base */}
+      {/* Mining stats */}
       <MiningStats />
 
-      {/* How it works */}
-      <div className="glass-card p-5">
-        <h2 className="text-sm font-semibold text-text mb-3">How it works</h2>
-        <div className="grid sm:grid-cols-2 gap-2 text-sm text-text-dim">
-          <p><span className="text-base-blue-light">→</span> BOTCOIN mining requires <span className="text-warn font-medium">25,000,000</span> tokens to participate</p>
-          <p><span className="text-base-blue-light">→</span> This pool lets you deposit <span className="text-accent font-medium">any amount</span> and earn proportional rewards</p>
-          <p><span className="text-base-blue-light">→</span> AI solver bots compete in <span className="text-indigo font-medium">60-second puzzle rounds</span></p>
-          <p><span className="text-base-blue-light">→</span> Anyone can trigger reward distribution — <span className="text-success font-medium">fully trustless</span></p>
-        </div>
-      </div>
-
       {/* Create pool form */}
-      {showCreate && <CreatePool onCreated={handleCreated} />}
+      {showCreate && <CreatePool onCreated={handleCreated} onClose={handleCloseCreate} />}
 
       {/* Pool list */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-text">Active Pools</h2>
-          {isConnected && FACTORY_ADDRESS !== "0x0000000000000000000000000000000000000000" && (
+          <h2 className="text-sm font-semibold text-text">Pools</h2>
+          {isConnected && factoryReady && (
             <button
               onClick={() => setShowCreate(!showCreate)}
               className={`btn-ghost px-3 py-1.5 text-xs ${showCreate ? "border-danger/40! text-danger!" : ""}`}
@@ -73,15 +70,6 @@ export default function Home() {
         </div>
         <PoolList refreshKey={refreshKey} />
       </div>
-    </div>
-  );
-}
-
-function InfoCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="glass-card px-4 py-3">
-      <p className="text-[11px] text-muted uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-sm text-text font-semibold">{value}</p>
     </div>
   );
 }
