@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, encodeFunctionData } from "viem";
-import { poolAbi, erc20Abi } from "@/lib/contracts";
+import { poolAbi, erc20Abi, miningAbi } from "@/lib/contracts";
+import { MINING_ADDRESS } from "@/lib/config";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 
@@ -44,6 +45,14 @@ export default function PoolPage() {
   });
   const { data: maxStake } = useReadContract({
     address, abi: poolAbi, functionName: "maxStake",
+  });
+
+  // ── Mining epoch (to detect lazy pending→active transition) ──
+  const { data: currentEpoch } = useReadContract({
+    address: MINING_ADDRESS,
+    abi: miningAbi,
+    functionName: "currentEpoch",
+    query: { refetchInterval: 30_000 },
   });
 
   // ── User reads ──
@@ -130,8 +139,25 @@ export default function PoolPage() {
   }, [setFeeOk, setOperatorOk, transferOwnershipOk, refetchActive]);
 
   // ── Derived ──
-  const userActive = stakeInfo?.[0] ?? 0n;
-  const userPending = stakeInfo?.[1] ?? 0n;
+  const rawActive = stakeInfo?.[0] ?? 0n;
+  const rawPending = stakeInfo?.[1] ?? 0n;
+  const lastDepositEpoch = stakeInfo?.[2] ?? 0n;
+
+  // If the current epoch has advanced past the user's last deposit epoch,
+  // the contract's lazy _updateUser() will move pending → active on next interaction.
+  // Mirror that logic here so the UI shows the effective (post-transition) values.
+  const epochAdvanced =
+    currentEpoch !== undefined &&
+    lastDepositEpoch > 0n &&
+    rawPending > 0n &&
+    BigInt(currentEpoch) > BigInt(lastDepositEpoch);
+
+  const userActive = epochAdvanced ? rawActive + rawPending : rawActive;
+  const userPending = epochAdvanced ? 0n : rawPending;
+
+  // Same logic for pool-level totals
+  const effectiveTotalActive = (totalActive ?? 0n) + (epochAdvanced ? (totalPending ?? 0n) : 0n);
+
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : 0;
   const isOwner = userAddress && owner && userAddress.toLowerCase() === owner.toLowerCase();
 
@@ -240,11 +266,14 @@ export default function PoolPage() {
         </div>
 
         <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatBlock label="Total Staked" value={fmtToken(totalActive)} accent />
-          <StatBlock label="Pending" value={fmtToken(totalPending)} />
+          <StatBlock label="Total Staked" value={fmtToken(effectiveTotalActive)} accent />
+          <StatBlock label="Pending" value={fmtToken(epochAdvanced ? 0n : (totalPending ?? 0n))} />
           <StatBlock label="Your Active" value={fmtToken(userActive)} accent />
           <StatBlock label="Your Pending" value={fmtToken(userPending)} />
         </div>
+        {epochAdvanced && (
+          <p className="mt-2 text-xs text-success">Epoch advanced — pending stake is now withdrawable</p>
+        )}
       </div>
 
       {/* Action Panels */}
@@ -394,9 +423,9 @@ export default function PoolPage() {
                 {isClaiming ? "Claiming..." : "Claim"}
               </button>
             </div>
-            {totalActive && totalActive > 0n && (
+            {effectiveTotalActive > 0n && (
               <div className="mt-3 pt-3 border-t border-border text-xs text-muted">
-                Pool share: <span className="text-base-blue-light font-medium">{((Number(userActive) / Number(totalActive)) * 100).toFixed(2)}%</span>
+                Pool share: <span className="text-base-blue-light font-medium">{((Number(userActive) / Number(effectiveTotalActive)) * 100).toFixed(2)}%</span>
               </div>
             )}
           </div>
