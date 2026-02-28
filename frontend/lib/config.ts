@@ -17,9 +17,13 @@ export const FACTORY_ADDRESS =
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`) ||
   ("0x0000000000000000000000000000000000000000" as `0x${string}`);
 
-// Official BotcoinMining contract on Base
+// Official BotcoinMiningV2 contract on Base
 export const MINING_ADDRESS =
-  "0xd572e61e1B627d4105832C815Ccd722B5baD9233" as `0x${string}`;
+  "0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716" as `0x${string}`;
+
+// BonusEpoch contract on Base
+export const BONUS_EPOCH_ADDRESS =
+  "0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8" as `0x${string}`;
 
 // BOTCOIN token on Base
 export const BOTCOIN_ADDRESS =

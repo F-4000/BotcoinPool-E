@@ -24,16 +24,17 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
   });
   const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
-  // Batch-read totalActiveStake + globalPendingStake for every pool (multicall)
-  const stakeQueries = useMemo(() => {
+  // Batch-read getPoolInfo for every pool (multicall)
+  const poolInfoQueries = useMemo(() => {
     if (!pools || pools.length === 0) return [];
-    return pools.flatMap((addr) => [
-      { address: addr, abi: poolAbi, functionName: "totalActiveStake" as const },
-      { address: addr, abi: poolAbi, functionName: "globalPendingStake" as const },
-    ]);
+    return pools.map((addr) => ({
+      address: addr,
+      abi: poolAbi,
+      functionName: "getPoolInfo" as const,
+    }));
   }, [pools]);
 
-  const { data: stakeResults } = useReadContracts({ contracts: stakeQueries });
+  const { data: poolInfoResults } = useReadContracts({ contracts: poolInfoQueries });
 
   // ── Per-pool mining reads: credits(epoch, pool) ──
   const miningQueries = useMemo(() => {
@@ -74,21 +75,22 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     return map;
   }, [pools, miningResults, totalCredits]);
 
-  // Sort pools by total stake (active + pending) descending
+  // Sort pools by staked-in-mining (from getPoolInfo[1]) descending
   const sortedPools = useMemo(() => {
     if (!pools || pools.length === 0) return [];
-    if (!stakeResults) return [...pools]; // Unsorted until data arrives
+    if (!poolInfoResults) return [...pools];
 
     const withStake = pools.map((addr, i) => {
-      const active = (stakeResults[i * 2]?.result as bigint) ?? 0n;
-      const pending = (stakeResults[i * 2 + 1]?.result as bigint) ?? 0n;
-      return { addr, total: active + pending };
+      const result = poolInfoResults[i]?.result as readonly [number, bigint, bigint, bigint, bigint, bigint, boolean, bigint] | undefined;
+      const staked = result?.[1] ?? 0n;
+      const deposits = result?.[3] ?? 0n;
+      return { addr, total: staked + deposits };
     });
 
     return withStake
       .sort((a, b) => (b.total > a.total ? 1 : b.total < a.total ? -1 : 0))
       .map((p) => p.addr);
-  }, [pools, stakeResults]);
+  }, [pools, poolInfoResults]);
 
   if (FACTORY_ADDRESS === "0x0000000000000000000000000000000000000000") {
     return (
@@ -130,7 +132,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
         <p className="text-text-dim text-sm mb-2">No pools found</p>
         <p className="text-xs text-muted">
           {isConnected
-            ? "Use the \"+ Create Pool\" button above to deploy the first pool."
+            ? 'Use the "+ Create Pool" button above to deploy the first pool.'
             : "Connect your wallet and create the first pool."}
         </p>
       </div>
@@ -148,14 +150,15 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       <div className="flex items-center gap-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border">
         <span className="w-1.5" />
         <span className="w-28">Pool</span>
+        <span className="hidden sm:inline w-16">State</span>
         <span className="min-w-20 hidden sm:block">Staked</span>
         <span className="w-16 text-right hidden sm:block">Fee</span>
+        <span className="w-10 text-right hidden sm:block">Tier</span>
         <span className="w-16 text-right hidden sm:block">Credits</span>
         <span className="flex-1 max-w-50 hidden md:block">Capacity</span>
         <span className="ml-auto w-10" />
       </div>
 
-      {/* Rows */}
       <div className="glass-card overflow-hidden">
         {sortedPools.map((addr) => {
           const mining = miningMap.get(addr.toLowerCase());

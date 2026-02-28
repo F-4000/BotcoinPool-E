@@ -1,4 +1,4 @@
-// ── BotcoinPoolFactory ABI (relevant subset) ──────────────────────────
+// ── BotcoinPoolFactoryV2 ABI ──────────────────────────────────────────
 export const factoryAbi = [
   {
     inputs: [
@@ -34,15 +34,23 @@ export const factoryAbi = [
   },
   {
     inputs: [],
-    name: "miningContract",
+    name: "mining",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "bonusEpoch",
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
   },
 ] as const;
 
-// ── BotcoinPool ABI (relevant subset) ─────────────────────────────────
+// ── BotcoinPoolV2 ABI ────────────────────────────────────────────────
 export const poolAbi = [
+  // -- Deposit / Withdraw --
   {
     inputs: [{ internalType: "uint256", name: "amount", type: "uint256" }],
     name: "deposit",
@@ -52,7 +60,51 @@ export const poolAbi = [
   },
   {
     inputs: [{ internalType: "uint256", name: "amount", type: "uint256" }],
-    name: "withdraw",
+    name: "withdrawShare",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // -- Staking lifecycle --
+  {
+    inputs: [],
+    name: "stakeIntoMining",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "triggerUnstake",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "cancelUnstake",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "finalizeWithdraw",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // -- Reward claiming --
+  {
+    inputs: [{ internalType: "uint64[]", name: "epochIds", type: "uint64[]" }],
+    name: "triggerClaim",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint64[]", name: "epochIds", type: "uint64[]" }],
+    name: "triggerBonusClaim",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -64,32 +116,68 @@ export const poolAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  // -- Views --
   {
     inputs: [{ internalType: "address", name: "user", type: "address" }],
-    name: "getStakeInfo",
+    name: "getUserInfo",
     outputs: [
-      { internalType: "uint256", name: "active", type: "uint256" },
-      { internalType: "uint256", name: "pending", type: "uint256" },
-      { internalType: "uint64", name: "lastEpoch", type: "uint64" },
+      { internalType: "uint256", name: "depositAmt", type: "uint256" },
+      { internalType: "uint256", name: "pendingReward", type: "uint256" },
+      { internalType: "uint256", name: "shareOfPool", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "rewards",
+    inputs: [],
+    name: "getPoolInfo",
+    outputs: [
+      { internalType: "uint8", name: "state", type: "uint8" },
+      { internalType: "uint256", name: "stakedInMining", type: "uint256" },
+      { internalType: "uint256", name: "totalDep", type: "uint256" },
+      { internalType: "uint256", name: "rewardable", type: "uint256" },
+      { internalType: "uint64", name: "currentEpoch", type: "uint64" },
+      { internalType: "bool", name: "eligible", type: "bool" },
+      { internalType: "uint256", name: "cooldownEnd", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "earned",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "totalActiveStake",
+    name: "poolState",
+    outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalDeposits",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
-
+  {
+    inputs: [],
+    name: "totalRewardableStake",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "userDeposit",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [],
     name: "feeBps",
@@ -120,47 +208,31 @@ export const poolAbi = [
   },
   {
     inputs: [],
-    name: "globalPendingStake",
+    name: "maxStake",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
+  // -- Admin --
   {
-    inputs: [],
-    name: "globalLastUpdateEpoch",
-    outputs: [{ internalType: "uint64", name: "", type: "uint64" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "bytes", name: "data", type: "bytes" }],
-    name: "triggerClaim",
+    inputs: [{ internalType: "uint256", name: "_feeBps", type: "uint256" }],
+    name: "setFee",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [
-      { internalType: "bytes4", name: "selector", type: "bytes4" },
-      { internalType: "bool", name: "allowed", type: "bool" },
-    ],
-    name: "setAllowedClaimSelector",
+    inputs: [{ internalType: "address", name: "_op", type: "address" }],
+    name: "setOperator",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
-    name: "allowedClaimSelectors",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
-    name: "allowedOperatorSelectors",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
+    inputs: [{ internalType: "address", name: "newOwner", type: "address" }],
+    name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -174,50 +246,22 @@ export const poolAbi = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "userActivatedEpoch",
-    outputs: [{ internalType: "uint64", name: "", type: "uint64" }],
+    inputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
+    name: "allowedOperatorSelectors",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [],
-    name: "MINING_MAX_STAKE",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "maxStake",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint256", name: "_feeBps", type: "uint256" }],
-    name: "setFee",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "_newOperator", type: "address" }],
-    name: "setOperator",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "newOwner", type: "address" }],
-    name: "transferOwnership",
+    inputs: [{ internalType: "bytes", name: "data", type: "bytes" }],
+    name: "submitToMining",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
 ] as const;
 
-// ── BotcoinMining ABI (read functions for dashboard) ──────────────────
+// ── BotcoinMiningV2 ABI (read functions for dashboard) ───────────────
 export const miningAbi = [
   {
     inputs: [],
@@ -270,15 +314,36 @@ export const miningAbi = [
   },
   {
     inputs: [],
-    name: "coordinatorSigner",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "totalStaked",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "owner",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "unstakeCooldown",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "stakedAmount",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "withdrawableAt",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "isEligible",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
@@ -309,16 +374,48 @@ export const miningAbi = [
     stateMutability: "view",
     type: "function",
   },
+] as const;
+
+// ── BonusEpoch ABI ───────────────────────────────────────────────────
+export const bonusEpochAbi = [
   {
-    inputs: [{ internalType: "uint64", name: "", type: "uint64" }],
-    name: "epochCommit",
+    inputs: [{ internalType: "uint64[]", name: "epochIds", type: "uint64[]" }],
+    name: "claimBonus",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint64", name: "epochId", type: "uint64" }],
+    name: "isBonusEpoch",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint64", name: "epochId", type: "uint64" }],
+    name: "epochBonusBlock",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint64", name: "epochId", type: "uint64" }],
+    name: "epochBonusHash",
     outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "rewardBalance",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
 ] as const;
 
-// ── ERC20 ABI (approve + balanceOf + decimals + symbol + totalSupply) ─
+// ── ERC20 ABI ────────────────────────────────────────────────────────
 export const erc20Abi = [
   {
     inputs: [

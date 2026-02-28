@@ -64,7 +64,7 @@ export default function Scoreboard() {
       {
         address: addr,
         abi: poolAbi,
-        functionName: "totalActiveStake" as const,
+        functionName: "getPoolInfo" as const,
       },
     ]);
   }, [pools, epochNum]);
@@ -84,16 +84,8 @@ export default function Scoreboard() {
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 
-  // ── Epoch commit (non-zero = puzzle committed) ──
-  const { data: epochCommitData } = useReadContract({
-    address: MINING_ADDRESS,
-    abi: miningAbi,
-    functionName: "epochCommit",
-    args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 30_000 },
-  });
-  const epochCommit = epochCommitData as `0x${string}` | undefined;
-  const epochActive = epochCommit !== undefined && epochCommit !== "0x0000000000000000000000000000000000000000000000000000000000000000";
+  // Epoch is active if we have a valid epoch number
+  const epochActive = epochNum !== undefined && epochNum > 0;
 
   // ── Build sorted pool rows ──
   const rows = useMemo(() => {
@@ -103,7 +95,8 @@ export default function Scoreboard() {
       .map((addr, i) => {
         const credits = (poolResults[i * 3]?.result as bigint) ?? 0n;
         const solveCount = (poolResults[i * 3 + 1]?.result as bigint) ?? 0n;
-        const activeStake = (poolResults[i * 3 + 2]?.result as bigint) ?? 0n;
+        const poolInfoResult = poolResults[i * 3 + 2]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint] | undefined;
+        const activeStake = poolInfoResult?.[1] ?? 0n; // stakedInMining from getPoolInfo
         const creditsNum = Number(credits);
         const totalNum = totalCredits ? Number(totalCredits) : 0;
         const sharePercent = totalNum > 0 ? (creditsNum / totalNum) * 100 : 0;

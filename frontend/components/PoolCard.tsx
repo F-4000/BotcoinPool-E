@@ -6,7 +6,15 @@ import { poolAbi } from "@/lib/contracts";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 
-/** Compact number display */
+const POOL_STATES = ["Idle", "Active", "Unstaking", "Withdrawable"] as const;
+
+const STATE_BADGES: Record<string, { color: string; bg: string }> = {
+  Idle: { color: "text-muted", bg: "bg-muted/10" },
+  Active: { color: "text-success", bg: "bg-success/10" },
+  Unstaking: { color: "text-warn", bg: "bg-warn/10" },
+  Withdrawable: { color: "text-base-blue-light", bg: "bg-base-blue/10" },
+};
+
 function compactNum(n: number): string {
   if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
@@ -23,51 +31,74 @@ interface PoolRowProps {
 export default function PoolRow({ address, credits, sharePercent }: PoolRowProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const { data: totalActive } = useReadContract({
-    address, abi: poolAbi, functionName: "totalActiveStake",
+  const { data: poolInfo } = useReadContract({
+    address,
+    abi: poolAbi,
+    functionName: "getPoolInfo",
+    query: { refetchInterval: 15_000 },
   });
-  const { data: totalPending } = useReadContract({
-    address, abi: poolAbi, functionName: "globalPendingStake",
-  });
-  const { data: feeBps } = useReadContract({
-    address, abi: poolAbi, functionName: "feeBps",
-  });
-  const { data: operator } = useReadContract({
-    address, abi: poolAbi, functionName: "operator",
-  });
-  const { data: maxStake } = useReadContract({
-    address, abi: poolAbi, functionName: "maxStake",
-  });
+  const { data: feeBps } = useReadContract({ address, abi: poolAbi, functionName: "feeBps" });
+  const { data: operator } = useReadContract({ address, abi: poolAbi, functionName: "operator" });
+  const { data: maxStake } = useReadContract({ address, abi: poolAbi, functionName: "maxStake" });
+
+  const poolStateNum = poolInfo?.[0] ?? 0;
+  const stateName = POOL_STATES[poolStateNum] ?? "Idle";
+  const stakedInMining = poolInfo?.[1] ?? 0n;
+  const totalDep = poolInfo?.[2] ?? 0n;
+  const eligible = poolInfo?.[5] ?? false;
 
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : undefined;
-  const totalStake = (totalActive ?? 0n) + (totalPending ?? 0n);
+  const totalStake = stakedInMining + totalDep;
+
   const isCapped = maxStake !== undefined && maxStake > 0n;
+  const capPercent = isCapped && maxStake > 0n ? Number((totalStake * 100n) / maxStake) : 0;
   const isFull = isCapped && totalStake >= maxStake;
-  const capPercent = isCapped ? Number((totalStake * 100n) / maxStake) : 0;
+
+  // Tier
+  const tier = stakedInMining >= 100_000_000n * 10n ** 18n ? 3
+    : stakedInMining >= 50_000_000n * 10n ** 18n ? 2
+    : stakedInMining >= 25_000_000n * 10n ** 18n ? 1
+    : 0;
+
+  const badge = STATE_BADGES[stateName] ?? STATE_BADGES.Idle;
 
   return (
     <div className="border-b border-border last:border-b-0">
-      {/* Main row — clickable to expand */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-card-hover/50 transition-colors text-left cursor-pointer"
       >
         {/* Status dot */}
-        <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${isFull ? "bg-danger" : "bg-success pulse-dot"}`} />
+        <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+          stateName === "Active" ? "bg-success pulse-dot" :
+          stateName === "Unstaking" ? "bg-warn pulse-dot" :
+          stateName === "Withdrawable" ? "bg-base-blue-light pulse-dot" :
+          isFull ? "bg-danger" : "bg-muted"
+        }`} />
 
         {/* Address */}
         <span className="text-sm font-semibold text-base-blue-light font-tabular w-28 shrink-0">
           {shortAddr(address)}
         </span>
 
+        {/* State badge */}
+        <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${badge.color} ${badge.bg} hidden sm:inline`}>
+          {stateName}
+        </span>
+
         {/* Staked */}
         <span className="text-sm text-text font-tabular min-w-20 hidden sm:block">
-          {fmtToken(totalActive)}
+          {fmtToken(stakedInMining)}
         </span>
 
         {/* Fee */}
         <span className="text-xs text-warn font-medium w-16 text-right hidden sm:block">
           {feePercent !== undefined ? `${feePercent}%` : "—"}
+        </span>
+
+        {/* Tier */}
+        <span className={`text-xs font-tabular w-10 text-right hidden sm:block ${tier > 0 ? "text-success font-semibold" : "text-muted"}`}>
+          {tier > 0 ? `T${tier}` : "—"}
         </span>
 
         {/* Credits / Share */}
@@ -81,7 +112,7 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
             : "—"}
         </span>
 
-        {/* Cap bar (inline, compact) */}
+        {/* Cap bar */}
         <div className="flex-1 hidden md:flex items-center gap-2 max-w-50">
           {isCapped ? (
             <>
@@ -102,12 +133,10 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
           )}
         </div>
 
-        {/* Status badge + chevron */}
+        {/* Chevron */}
         <div className="flex items-center gap-2 ml-auto shrink-0">
           {isFull && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 px-1.5 py-0.5 rounded">
-              Full
-            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 px-1.5 py-0.5 rounded">Full</span>
           )}
           <svg
             className={`w-3.5 h-3.5 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -118,32 +147,31 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
         </div>
       </button>
 
-      {/* Expanded details */}
       {expanded && (
         <div className="px-4 pb-4 pt-1 bg-card/30">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm mb-3">
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Active Stake</p>
-              <p className="text-text font-semibold font-tabular">{fmtToken(totalActive)}</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Staked in Mining</p>
+              <p className="text-text font-semibold font-tabular">{fmtToken(stakedInMining)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Pending</p>
-              <p className="text-warn font-semibold font-tabular">{fmtToken(totalPending)}</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Total Deposits</p>
+              <p className="text-text font-semibold font-tabular">{fmtToken(totalDep)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Operator Fee</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Fee</p>
               <p className="text-text font-semibold font-tabular">{feePercent !== undefined ? `${feePercent}%` : "—"}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Credits (epoch)</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Credits</p>
               <p className="text-text font-semibold font-tabular">
                 {credits && credits > 0n ? compactNum(Number(credits)) : "0"}
               </p>
             </div>
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Reward Share</p>
-              <p className={`font-semibold font-tabular ${sharePercent && sharePercent > 0 ? "text-success" : "text-muted"}`}>
-                {sharePercent && sharePercent > 0 ? `${sharePercent.toFixed(1)}%` : "—"}
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Eligible</p>
+              <p className={`font-semibold font-tabular ${eligible ? "text-success" : "text-muted"}`}>
+                {eligible ? "Yes" : "No"}
               </p>
             </div>
             {isCapped && (
@@ -156,20 +184,15 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
             )}
           </div>
 
-          {/* Operator */}
           {operator && (
             <p className="text-xs text-muted mb-3">
               Operator: <span className="text-text-dim font-tabular">{shortAddr(operator)}</span>
             </p>
           )}
 
-          {/* Contract address + link */}
           <div className="flex items-center gap-3">
             <p className="text-[10px] text-muted font-tabular break-all">{address}</p>
-            <Link
-              href={`/pool/${address}`}
-              className="shrink-0 btn-ghost px-3 py-1.5 text-xs"
-            >
+            <Link href={`/pool/${address}`} className="shrink-0 btn-ghost px-3 py-1.5 text-xs">
               Open Pool →
             </Link>
           </div>
