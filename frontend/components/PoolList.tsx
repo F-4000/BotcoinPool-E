@@ -147,16 +147,16 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       </p>
 
       {/* Column headers */}
-      <div className="flex items-center gap-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border">
-        <span className="w-1.5" />
-        <span className="w-28">Pool</span>
-        <span className="hidden sm:inline w-16">State</span>
-        <span className="min-w-20 hidden sm:block">Staked</span>
-        <span className="w-16 text-right hidden sm:block">Fee</span>
-        <span className="w-10 text-right hidden sm:block">Tier</span>
-        <span className="w-16 text-right hidden sm:block">Credits</span>
-        <span className="flex-1 max-w-50 hidden md:block">Capacity</span>
-        <span className="ml-auto w-10" />
+      <div className="grid items-center gap-x-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_2rem] md:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_1fr_2rem]">
+        <span />
+        <span>Pool</span>
+        <span className="hidden sm:block">State</span>
+        <span className="hidden sm:block">Staked</span>
+        <span className="hidden sm:block text-right">Fee</span>
+        <span className="hidden sm:block text-right">Tier</span>
+        <span className="hidden sm:block text-right">Credits</span>
+        <span className="hidden md:block">Capacity</span>
+        <span />
       </div>
 
       <div className="glass-card overflow-hidden">

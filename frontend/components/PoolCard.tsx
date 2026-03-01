@@ -67,49 +67,47 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
     <div className="border-b border-border last:border-b-0">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-card-hover/50 transition-colors text-left cursor-pointer"
+        className="w-full grid items-center gap-x-3 px-4 py-3 hover:bg-card-hover/50 transition-colors text-left cursor-pointer grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_2rem] md:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_1fr_2rem]"
       >
         {/* Status dot */}
-        <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+        <div className={`h-1.5 w-1.5 rounded-full ${
           stateName === "Active" ? "bg-success pulse-dot" :
           stateName === "Unstaking" ? "bg-warn pulse-dot" :
           isFull ? "bg-danger" : "bg-muted"
         }`} />
 
         {/* Address */}
-        <span className="text-sm font-semibold text-base-blue-light font-tabular w-28 shrink-0">
+        <span className="text-sm font-semibold text-base-blue-light font-tabular truncate">
           {shortAddr(address)}
         </span>
 
-        {/* State badge */}
-        <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${badge.color} ${badge.bg} hidden sm:inline`}>
-          {stateName}
-        </span>
-
-        {/* Bot status badge (compact) */}
-        {stateName === "Active" && currentEpoch !== undefined && (
-          <span className="hidden sm:inline">
-            <BotStatus poolAddress={address} currentEpoch={currentEpoch} compact />
+        {/* State + Bot status */}
+        <div className="hidden sm:flex items-center gap-1.5 overflow-hidden">
+          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${badge.color} ${badge.bg}`}>
+            {stateName}
           </span>
-        )}
+          {stateName === "Active" && currentEpoch !== undefined && (
+            <BotStatus poolAddress={address} currentEpoch={currentEpoch} compact />
+          )}
+        </div>
 
         {/* Staked */}
-        <span className="text-sm text-text font-tabular min-w-20 hidden sm:block">
+        <span className="text-sm text-text font-tabular hidden sm:block">
           {fmtToken(stakedInMining)}
         </span>
 
         {/* Fee */}
-        <span className="text-xs text-warn font-medium w-16 text-right hidden sm:block">
+        <span className="text-xs text-warn font-medium text-right hidden sm:block">
           {feePercent !== undefined ? `${feePercent}%` : "-"}
         </span>
 
         {/* Tier */}
-        <span className={`text-xs font-tabular w-10 text-right hidden sm:block ${tier > 0 ? "text-success font-semibold" : "text-muted"}`}>
+        <span className={`text-xs font-tabular text-right hidden sm:block ${tier > 0 ? "text-success font-semibold" : "text-muted"}`}>
           {tier > 0 ? `T${tier}` : "-"}
         </span>
 
         {/* Credits / Share */}
-        <span className={`text-xs font-tabular w-16 text-right hidden sm:block ${
+        <span className={`text-xs font-tabular text-right hidden sm:block ${
           credits && credits > 0n ? "text-success font-semibold" : "text-muted"
         }`}>
           {credits && credits > 0n
@@ -120,7 +118,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
         </span>
 
         {/* Cap bar */}
-        <div className="flex-1 hidden md:flex items-center gap-2 max-w-50">
+        <div className="hidden md:flex items-center gap-2">
           {isCapped ? (
             <>
               <div className="flex-1 h-1 rounded-full bg-border overflow-hidden">
@@ -131,7 +129,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
                   style={{ width: `${Math.min(capPercent, 100)}%` }}
                 />
               </div>
-              <span className={`text-[10px] font-tabular w-8 text-right ${isFull ? "text-danger" : "text-muted"}`}>
+              <span className={`text-[10px] font-tabular ${isFull ? "text-danger" : "text-muted"}`}>
                 {capPercent}%
               </span>
             </>
@@ -141,9 +139,9 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
         </div>
 
         {/* Chevron */}
-        <div className="flex items-center gap-2 ml-auto shrink-0">
+        <div className="flex items-center justify-end">
           {isFull && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 px-1.5 py-0.5 rounded">Full</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 px-1.5 py-0.5 rounded mr-1">Full</span>
           )}
           <svg
             className={`w-3.5 h-3.5 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
