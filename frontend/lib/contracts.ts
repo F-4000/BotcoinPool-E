@@ -94,6 +94,13 @@ export const poolAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [],
+    name: "topUpStake",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
   // -- Reward claiming --
   {
     inputs: [{ internalType: "uint64[]", name: "epochIds", type: "uint64[]" }],
@@ -139,6 +146,7 @@ export const poolAbi = [
       { internalType: "uint64", name: "currentEpoch", type: "uint64" },
       { internalType: "bool", name: "eligible", type: "bool" },
       { internalType: "uint256", name: "cooldownEnd", type: "uint256" },
+      { internalType: "uint256", name: "pending", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
@@ -217,6 +225,13 @@ export const poolAbi = [
     inputs: [],
     name: "unstakeRequestEpoch",
     outputs: [{ internalType: "uint64", name: "", type: "uint64" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "pendingDeposits",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },

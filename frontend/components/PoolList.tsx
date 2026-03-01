@@ -81,10 +81,9 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     if (!poolInfoResults) return [...pools];
 
     const withStake = pools.map((addr, i) => {
-      const result = poolInfoResults[i]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint] | undefined;
-      const staked = result?.[1] ?? 0n;
-      const deposits = result?.[2] ?? 0n;
-      return { addr, total: staked + deposits };
+      const result = poolInfoResults[i]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint, bigint] | undefined;
+      const deposits = result?.[2] ?? 0n; // totalDeposits already includes staked + pending
+      return { addr, total: deposits };
     });
 
     return withStake
@@ -169,6 +168,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
               address={addr}
               credits={mining?.credits}
               sharePercent={mining?.sharePercent}
+              currentEpoch={epochNum}
             />
           );
         })}

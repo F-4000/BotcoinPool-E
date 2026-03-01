@@ -189,10 +189,48 @@ export default function DocsPage() {
         </div>
       </Section>
 
+      {/* Operator Bot */}
+      <Section title="Operator Mining Bot">
+        <p>
+          Each pool needs a running <Hl>mining bot</Hl> to compete in Proof-of-Inference
+          challenges and earn credits. Without a bot, the pool will not earn any rewards.
+        </p>
+        <p>
+          When you create a pool, the <Hl color="warn">Bot Setup Wizard</Hl> on the pool
+          detail page walks you through everything:
+        </p>
+        <ul className="list-none space-y-2 mt-2">
+          <li className="flex items-start gap-2 text-sm text-text-dim">
+            <span className="text-base-blue-light mt-0.5">&#9656;</span>
+            <span>Create or connect an operator wallet (e.g. via <a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline">Bankr</a>)</span>
+          </li>
+          <li className="flex items-start gap-2 text-sm text-text-dim">
+            <span className="text-base-blue-light mt-0.5">&#9656;</span>
+            <span>Choose your LLM provider (OpenAI or Anthropic)</span>
+          </li>
+          <li className="flex items-start gap-2 text-sm text-text-dim">
+            <span className="text-base-blue-light mt-0.5">&#9656;</span>
+            <span>Generate your <Code>.env</Code> config template</span>
+          </li>
+          <li className="flex items-start gap-2 text-sm text-text-dim">
+            <span className="text-base-blue-light mt-0.5">&#9656;</span>
+            <span>Whitelist the <Code>submitReceipt</Code> selector on-chain</span>
+          </li>
+          <li className="flex items-start gap-2 text-sm text-text-dim">
+            <span className="text-base-blue-light mt-0.5">&#9656;</span>
+            <span>Download bot files (zip or git clone) and launch</span>
+          </li>
+        </ul>
+        <p className="mt-3">
+          The pool detail page shows a live <Hl color="success">Bot Status</Hl> indicator
+          that detects whether credits are flowing, so you can confirm the bot is working.
+        </p>
+      </Section>
+
       {/* Contract Addresses */}
       <Section title="Contract Addresses">
         <div className="space-y-2">
-          <AddrRow label="FactoryV2" addr="0x653EF59BA961f622385EA8012a5DCdf388790b6C" />
+          <AddrRow label="FactoryV2" addr="0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df" />
           <AddrRow label="BotcoinMiningV2" addr="0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716" />
           <AddrRow label="BonusEpoch" addr="0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8" />
           <AddrRow label="BOTCOIN Token" addr="0xA601877977340862Ca67f816eb079958E5bd0BA3" />
@@ -207,7 +245,7 @@ export default function DocsPage() {
         <div className="flex items-center gap-4 text-xs">
           <a href="https://github.com/F-4000/BotcoinPool-E" target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">GitHub Source</a>
-          <a href="https://basescan.org/address/0x653EF59BA961f622385EA8012a5DCdf388790b6C#code" target="_blank" rel="noopener noreferrer"
+          <a href="https://basescan.org/address/0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df#code" target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">Verified on BaseScan</a>
         </div>
         <Link href="/" className="text-xs text-muted hover:text-base-blue-light transition-colors">

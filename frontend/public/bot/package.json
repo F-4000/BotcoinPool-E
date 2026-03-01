@@ -1,0 +1,14 @@
+{
+  "name": "botcoinpool-operator-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Operator mining bot for BotcoinPool",
+  "scripts": {
+    "start": "node bot.js",
+    "status": "node bot.js --status"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "ethers": "^6.13.0"
+  }
+}

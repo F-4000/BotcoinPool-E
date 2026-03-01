@@ -14,6 +14,11 @@ interface CreatePoolProps {
 export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
   const { address: userAddress } = useAccount();
   const [operatorAddr, setOperatorAddr] = useState(userAddress ?? "");
+
+  // Sync operator if wallet connects after mount
+  useEffect(() => {
+    if (userAddress && !operatorAddr) setOperatorAddr(userAddress);
+  }, [userAddress, operatorAddr]);
   const [feeBps, setFeeBps] = useState("50"); // 0.5% default
   const [maxStakeM, setMaxStakeM] = useState("100"); // 100M default
 
@@ -23,9 +28,7 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
   // Auto-refresh pool list once tx confirms
   useEffect(() => {
     if (isSuccess && onCreated) {
-      // Small delay to let the RPC catch up, then signal parent
-      const timer = setTimeout(() => onCreated(), 2000);
-      return () => clearTimeout(timer);
+      // Don't auto-close — let user read the bot setup warning
     }
   }, [isSuccess, onCreated]);
 
@@ -47,8 +50,8 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
 
   if (isSuccess) {
     return (
-      <div className="gradient-border p-5">
-        <p className="glow-success text-sm font-medium mb-2">Pool deployed successfully</p>
+      <div className="gradient-border p-5 space-y-4">
+        <p className="glow-success text-sm font-medium">Pool deployed successfully</p>
         <p className="text-xs text-muted">
           TX:{" "}
           <a
@@ -60,8 +63,20 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
             {txHash?.slice(0, 20)}...
           </a>
         </p>
-        <button onClick={onClose ?? onCreated} className="btn-ghost px-4 py-1.5 text-xs mt-3">
-          Close
+
+        <div className="bg-danger/5 border border-danger/30 rounded-lg p-3">
+          <p className="text-xs font-bold text-danger flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-danger pulse-dot" />
+            Next: Set up your mining bot
+          </p>
+          <p className="text-[11px] text-text-dim mt-1">
+            Your pool is deployed but <span className="text-text font-semibold">won&apos;t earn anything</span> until you configure and run the operator bot.
+            Go to your pool page to start the setup wizard.
+          </p>
+        </div>
+
+        <button onClick={() => { if (onCreated) onCreated(); }} className="btn-primary px-4 py-2 text-sm">
+          Go to my pool →
         </button>
       </div>
     );
@@ -81,7 +96,7 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
             onChange={(e) => setOperatorAddr(e.target.value)}
             className="pool-input w-full px-3 py-2.5 text-sm"
           />
-          <p className="mt-1 text-[11px] text-muted">Solver wallet that signs challenges</p>
+          <p className="mt-1 text-[11px] text-muted">Defaults to your wallet — can be changed later</p>
         </div>
         <div>
           <label className="text-xs text-muted block mb-1.5">Fee (basis points)</label>

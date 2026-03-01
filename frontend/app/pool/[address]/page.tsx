@@ -8,6 +8,8 @@ import { poolAbi, erc20Abi, miningAbi } from "@/lib/contracts";
 import { MINING_ADDRESS } from "@/lib/config";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
+import BotStatus from "@/components/BotStatus";
+import OperatorSetup from "@/components/OperatorSetup";
 
 // Pool states matching the Solidity enum
 const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
@@ -107,6 +109,7 @@ export default function PoolPage() {
   const { writeContract: requestUnstakeCall, data: requestUnstakeTx, isPending: isRequesting } = useWriteContract();
   const { writeContract: executeUnstakeCall, data: executeUnstakeTx, isPending: isExecutingUnstake } = useWriteContract();
   const { writeContract: finalizeCall, data: finalizeTx, isPending: isFinalizing } = useWriteContract();
+  const { writeContract: topUpCall, data: topUpTx, isPending: isToppingUp } = useWriteContract();
   const { writeContract: triggerClaimCall, data: triggerTx, isPending: isTriggering } = useWriteContract();
   const { writeContract: triggerBonusCall, data: triggerBonusTx, isPending: isTriggeringBonus } = useWriteContract();
   const { writeContract: setFeeCall, data: setFeeTx, isPending: isSettingFee } = useWriteContract();
@@ -122,6 +125,7 @@ export default function PoolPage() {
   const { isSuccess: requestUnstakeOk } = useWaitForTransactionReceipt({ hash: requestUnstakeTx });
   const { isSuccess: executeUnstakeOk } = useWaitForTransactionReceipt({ hash: executeUnstakeTx });
   const { isSuccess: finalizeOk } = useWaitForTransactionReceipt({ hash: finalizeTx });
+  const { isSuccess: topUpOk } = useWaitForTransactionReceipt({ hash: topUpTx });
   const { isSuccess: triggerOk } = useWaitForTransactionReceipt({ hash: triggerTx });
   const { isSuccess: triggerBonusOk } = useWaitForTransactionReceipt({ hash: triggerBonusTx });
   const { isSuccess: setFeeOk } = useWaitForTransactionReceipt({ hash: setFeeTx });
@@ -146,6 +150,7 @@ export default function PoolPage() {
   useEffect(() => { if (requestUnstakeOk) refetchAll(); }, [requestUnstakeOk, refetchAll]);
   useEffect(() => { if (executeUnstakeOk) refetchAll(); }, [executeUnstakeOk, refetchAll]);
   useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk, refetchAll]);
+  useEffect(() => { if (topUpOk) refetchAll(); }, [topUpOk, refetchAll]);
   useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk, refetchAll]);
   useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk, refetchAll]);
   useEffect(() => { if (setFeeOk) refetchAll(); }, [setFeeOk, refetchAll]);
@@ -168,7 +173,8 @@ export default function PoolPage() {
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : 0;
   const isOwner = userAddress && owner && userAddress.toLowerCase() === owner.toLowerCase();
 
-  const poolNotIdle = poolStateName !== "Idle";
+  const depositsLocked = poolStateName === "Unstaking";
+  const pendingDep = poolInfo?.[7] ?? 0n;
 
   const depositWei = (() => {
     try { return depositAmount ? parseEther(depositAmount) : 0n; }
@@ -178,7 +184,7 @@ export default function PoolPage() {
 
   // Pool cap
   const isCapped = maxStake !== undefined && maxStake > 0n;
-  const effectiveTotal = totalDep + stakedInMining;
+  const effectiveTotal = totalDep; // totalDeposits already includes staked + pending
   const remaining = isCapped ? (maxStake > effectiveTotal ? maxStake - effectiveTotal : 0n) : 0n;
   const overCap = isCapped && depositWei > 0n && depositWei > remaining;
   const poolFull = isCapped && remaining === 0n;
@@ -236,13 +242,17 @@ export default function PoolPage() {
   function handleFinalizeWithdraw() {
     finalizeCall({ address, abi: poolAbi, functionName: "finalizeWithdraw" });
   }
+  function handleTopUpStake() {
+    topUpCall({ address, abi: poolAbi, functionName: "topUpStake" });
+  }
   function handleTriggerClaim() {
-    if (epochNum === undefined) return;
-    triggerClaimCall({ address, abi: poolAbi, functionName: "triggerClaim", args: [[BigInt(epochNum)]] });
+    if (epochNum === undefined || epochNum < 1) return;
+    // Claim previous epoch — current epoch hasn't ended yet
+    triggerClaimCall({ address, abi: poolAbi, functionName: "triggerClaim", args: [[BigInt(epochNum - 1)]] });
   }
   function handleTriggerBonusClaim() {
-    if (epochNum === undefined) return;
-    triggerBonusCall({ address, abi: poolAbi, functionName: "triggerBonusClaim", args: [[BigInt(epochNum)]] });
+    if (epochNum === undefined || epochNum < 1) return;
+    triggerBonusCall({ address, abi: poolAbi, functionName: "triggerBonusClaim", args: [[BigInt(epochNum - 1)]] });
   }
   function handleSetFee() {
     const bps = parseInt(newFeeBps);
@@ -316,6 +326,7 @@ export default function PoolPage() {
         <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-5 gap-4">
           <StatBlock label="Staked in Mining" value={fmtToken(stakedInMining)} accent />
           <StatBlock label="Total Deposits" value={fmtToken(totalDep)} />
+          {pendingDep > 0n && <StatBlock label="Pending (Unstaked)" value={fmtToken(pendingDep)} />}
           <StatBlock
             label="Tier"
             value={tier > 0 ? `Tier ${tier}` : "Below Tier 1"}
@@ -336,6 +347,7 @@ export default function PoolPage() {
             <span>Reward Share <span className={`font-tabular ${creditShare > 0 ? "text-success font-semibold" : "text-muted"}`}>
               {creditShare > 0 ? `${creditShare.toFixed(1)}%` : "-"}
             </span></span>
+            <span className="ml-auto"><BotStatus poolAddress={address as `0x${string}`} currentEpoch={epochNum} /></span>
           </div>
         )}
       </div>
@@ -383,6 +395,15 @@ export default function PoolPage() {
           >
             {isFinalizing ? "Finalizing..." : "Finalize Withdraw"}
           </button>
+
+          {/* Top-Up Stake */}
+          <button
+            onClick={handleTopUpStake}
+            disabled={isToppingUp || !isConnected || poolStateName !== "Active" || pendingDep === 0n}
+            className="btn-ghost py-3 text-sm font-medium text-base-blue-light border-base-blue/30 hover:bg-base-blue/10 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {isToppingUp ? "Top-Up..." : pendingDep > 0n ? `Top-Up (${fmtToken(pendingDep)})` : "Top-Up Stake"}
+          </button>
         </div>
 
         {/* Unstake request status */}
@@ -414,6 +435,7 @@ export default function PoolPage() {
         {requestUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake requested, waiting for epoch end</p>}
         {executeUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake executed, cooldown started</p>}
         {finalizeOk && <p className="mt-2 text-xs glow-success">✓ Withdraw finalized, funds back in pool</p>}
+        {topUpOk && <p className="mt-2 text-xs glow-success">✓ Pending deposits staked into mining</p>}
       </div>
 
       {/* Action Panels */}
@@ -494,18 +516,18 @@ export default function PoolPage() {
               {!isConnected ? (
                 <p className="text-center text-xs text-muted">Connect wallet to deposit</p>
               ) : needsApproval ? (
-                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n || overCap || poolFull || poolNotIdle}
+                <button onClick={handleApprove} disabled={isApproving || depositWei === 0n || overCap || poolFull || depositsLocked}
                   className="btn-warn w-full py-3 text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
                   {isApproving ? "Approving..." : "Approve BOTCOIN"}
                 </button>
               ) : (
-                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull || poolNotIdle}
+                <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull || depositsLocked}
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isDepositing ? "Depositing..." : poolNotIdle ? "Pool not Idle" : "Deposit"}
+                  {isDepositing ? "Depositing..." : depositsLocked ? "Pool Unstaking" : poolStateName === "Active" ? "Deposit (Pending)" : "Deposit"}
                 </button>
               )}
               <p className="text-center text-[11px] text-muted">
-                Deposits are accepted when pool is Idle
+                {poolStateName === "Active" ? "Deposit goes to pending — use Top-Up to stake" : "Deposits accepted when pool is Idle or Active"}
               </p>
             </div>
           ) : (
@@ -582,13 +604,13 @@ export default function PoolPage() {
               <span className="text-success font-medium"> Fully trustless.</span>
             </p>
             <div className="flex gap-3">
-              <button onClick={handleTriggerClaim} disabled={isTriggering || !isConnected}
+              <button onClick={handleTriggerClaim} disabled={isTriggering || !isConnected || epochNum === undefined || epochNum < 1}
                 className="btn-ghost flex-1 py-3 text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
-                {isTriggering ? "Triggering..." : "Regular Claim →"}
+                {isTriggering ? "Triggering..." : `Claim Epoch ${epochNum !== undefined && epochNum > 0 ? epochNum - 1 : "?"} →`}
               </button>
-              <button onClick={handleTriggerBonusClaim} disabled={isTriggeringBonus || !isConnected}
+              <button onClick={handleTriggerBonusClaim} disabled={isTriggeringBonus || !isConnected || epochNum === undefined || epochNum < 1}
                 className="btn-ghost flex-1 py-3 text-sm font-medium text-base-blue-light border-base-blue/30 hover:bg-base-blue/10 disabled:opacity-30 disabled:cursor-not-allowed">
-                {isTriggeringBonus ? "Triggering..." : "Bonus Claim →"}
+                {isTriggeringBonus ? "Triggering..." : `Bonus Epoch ${epochNum !== undefined && epochNum > 0 ? epochNum - 1 : "?"} →`}
               </button>
             </div>
             {triggerOk && <p className="mt-3 text-xs glow-success">✓ Regular rewards distributed</p>}
@@ -596,6 +618,11 @@ export default function PoolPage() {
           </div>
         </div>
       </div>
+
+      {/* Operator Setup Guide — shown to pool owner */}
+      {isOwner && poolStateName !== "Unstaking" && (
+        <OperatorSetup poolAddress={address} operatorAddress={operator as string | undefined} />
+      )}
 
       {/* Admin Panel */}
       {isOwner && (

@@ -95,7 +95,7 @@ export default function Scoreboard() {
       .map((addr, i) => {
         const credits = (poolResults[i * 3]?.result as bigint) ?? 0n;
         const solveCount = (poolResults[i * 3 + 1]?.result as bigint) ?? 0n;
-        const poolInfoResult = poolResults[i * 3 + 2]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint] | undefined;
+        const poolInfoResult = poolResults[i * 3 + 2]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint, bigint] | undefined;
         const activeStake = poolInfoResult?.[1] ?? 0n; // stakedInMining from getPoolInfo
         const creditsNum = Number(credits);
         const totalNum = totalCredits ? Number(totalCredits) : 0;

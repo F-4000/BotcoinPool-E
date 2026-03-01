@@ -17,6 +17,8 @@ package-lock.json
 
 V2_TASKS.md
 v2_tasks.md
+BOUNTY_ALIGNMENT.md
+BOUNTY_HANDOFF_GUIDE.md
 
 # V1 contracts (obsolete)
 contracts/BotcoinPool.sol

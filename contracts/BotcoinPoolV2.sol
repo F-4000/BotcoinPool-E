@@ -32,6 +32,9 @@ interface IMiningV2 {
 interface IBonusEpoch {
     function claimBonus(uint64[] calldata epochIds) external;
     function isBonusEpoch(uint64 epochId) external view returns (bool);
+    function bonusClaimsOpen(uint64 epochId) external view returns (bool);
+    function bonusClaimed(uint64 epochId, address miner) external view returns (bool);
+    function bonusReward(uint64 epochId) external view returns (uint256);
 }
 
 // ── Pool lifecycle ───────────────────────────────────────────────────
@@ -88,6 +91,9 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
 
     // Epoch-boundary unstake gating
     uint64 public unstakeRequestEpoch; // 0 = no pending request
+
+    // Pending deposits (received while Active, not yet staked in mining)
+    uint256 public pendingDeposits;
 
     // ── Events ───────────────────────────────────────────────────────
     event Deposited(address indexed user, uint256 amount);
@@ -150,11 +156,17 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     //  1. DEPOSIT — user adds BOTCOIN to the pool
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Deposit BOTCOIN into the pool. Tokens sit in the contract
-    ///         until stakeIntoMining() is called. Only allowed when Idle.
+    /// @notice Deposit BOTCOIN into the pool.
+    ///         In Idle: tokens sit in the contract until stakeIntoMining().
+    ///         In Active: tokens are held as pending; call topUpStake() to
+    ///         push them into mining. Pending deposits share rewards
+    ///         proportionally from deposit time (fair dilution).
     function deposit(uint256 amount) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Zero amount");
-        require(poolState == PoolState.Idle, "Deposits only when idle");
+        require(
+            poolState == PoolState.Idle || poolState == PoolState.Active,
+            "Deposits closed"
+        );
 
         uint256 effective = totalDeposits + amount;
 
@@ -168,6 +180,11 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         userDeposit[msg.sender] += amount;
         totalDeposits += amount;
         totalRewardableStake += amount;
+
+        if (poolState == PoolState.Active) {
+            // Track subset that hasn't been staked in mining yet
+            pendingDeposits += amount;
+        }
 
         emit Deposited(msg.sender, amount);
     }
@@ -192,6 +209,23 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         _setPoolState(PoolState.Active);
 
         emit StakedIntoMining(toStake, mining.stakedAmount(address(this)));
+    }
+
+    /// @notice Push pending deposits into mining while pool is Active.
+    ///         Anyone can call. This allows mid-cycle growth without an
+    ///         unstake round-trip.  totalDeposits/totalRewardableStake are
+    ///         already up-to-date — this just moves tokens into mining.
+    function topUpStake() external nonReentrant {
+        require(poolState == PoolState.Active, "Pool not active");
+        require(pendingDeposits > 0, "No pending deposits");
+
+        uint256 amount = pendingDeposits;
+        pendingDeposits = 0;
+
+        stakingToken.forceApprove(address(mining), amount);
+        mining.stake(amount);
+
+        emit StakedIntoMining(amount, mining.stakedAmount(address(this)));
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -235,6 +269,10 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         uint256 balBefore = stakingToken.balanceOf(address(this));
         mining.withdraw();
         uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
+
+        // All deposits are now in the contract (returned from mining + any
+        // that were pending). Reset pending counter for next cycle.
+        pendingDeposits = 0;
 
         _setPoolState(PoolState.Idle);
         emit WithdrawFinalized(received);
@@ -403,7 +441,8 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         uint256 rewardable,
         uint64  currentEpoch,
         bool    eligible,
-        uint256 cooldownEnd
+        uint256 cooldownEnd,
+        uint256 pending
     ) {
         state          = poolState;
         stakedInMining = mining.stakedAmount(address(this));
@@ -412,6 +451,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         currentEpoch   = mining.currentEpoch();
         eligible       = mining.isEligible(address(this));
         cooldownEnd    = mining.withdrawableAt(address(this));
+        pending        = pendingDeposits;
     }
 
     // ── Internal helpers ─────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { useReadContract } from "wagmi";
 import { poolAbi } from "@/lib/contracts";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
+import BotStatus from "@/components/BotStatus";
 
 const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
 
@@ -25,9 +26,10 @@ interface PoolRowProps {
   address: `0x${string}`;
   credits?: bigint;
   sharePercent?: number;
+  currentEpoch?: number;
 }
 
-export default function PoolRow({ address, credits, sharePercent }: PoolRowProps) {
+export default function PoolRow({ address, credits, sharePercent, currentEpoch }: PoolRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const { data: poolInfo } = useReadContract({
@@ -47,7 +49,7 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
   const eligible = poolInfo?.[5] ?? false;
 
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : undefined;
-  const totalStake = stakedInMining + totalDep;
+  const totalStake = totalDep; // totalDeposits includes staked + pending
 
   const isCapped = maxStake !== undefined && maxStake > 0n;
   const capPercent = isCapped && maxStake > 0n ? Number((totalStake * 100n) / maxStake) : 0;
@@ -83,6 +85,13 @@ export default function PoolRow({ address, credits, sharePercent }: PoolRowProps
         <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${badge.color} ${badge.bg} hidden sm:inline`}>
           {stateName}
         </span>
+
+        {/* Bot status badge (compact) */}
+        {stateName === "Active" && currentEpoch !== undefined && (
+          <span className="hidden sm:inline">
+            <BotStatus poolAddress={address} currentEpoch={currentEpoch} compact />
+          </span>
+        )}
 
         {/* Staked */}
         <span className="text-sm text-text font-tabular min-w-20 hidden sm:block">
