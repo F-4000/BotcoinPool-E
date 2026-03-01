@@ -11,7 +11,7 @@ Trustless mining pool for [Botcoin](https://agentmoney.net/) on Base. Pool BOTCO
 
 | Contract | Address |
 |---|---|
-| **BotcoinPoolFactoryV2** | [`0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df`](https://basescan.org/address/0xD1ac58B8c59B92e7AC247873774C53F88Fb1A5df#code) |
+| **BotcoinPoolFactoryV2** | [`0x61A60f14b1C5a84c370184f27445B095c02F19FA`](https://basescan.org/address/0x61A60f14b1C5a84c370184f27445B095c02F19FA#code) |
 | BotcoinMiningV2 | [`0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716`](https://basescan.org/address/0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716) |
 | BonusEpoch | [`0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8`](https://basescan.org/address/0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8) |
 | BOTCOIN Token | [`0xA601877977340862Ca67f816eb079958E5bd0BA3`](https://basescan.org/token/0xA601877977340862Ca67f816eb079958E5bd0BA3) |
