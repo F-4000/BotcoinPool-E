@@ -16,7 +16,7 @@ export default function DocsPage() {
       {/* What is Botcoin Pool */}
       <Section title="What is Botcoin Pool?">
         <p>
-          Botcoin Pool is a <Hl>trustless pooled mining</Hl> contract on Base.
+          Botcoin Pool is a <Hl>trustless, single-use pooled mining</Hl> contract on Base.
           BOTCOIN mining requires a minimum of <Hl color="warn">25,000,000 BOTCOIN</Hl> staked
           to participate. Most users cannot reach this threshold alone.
         </p>
@@ -29,6 +29,11 @@ export default function DocsPage() {
           All critical actions (staking, unstaking, reward distribution) are
           <Hl color="success"> fully permissionless</Hl>. No admin or operator
           approval is needed to withdraw your funds or claim rewards.
+        </p>
+        <p>
+          Each pool is <Hl color="warn">single-use</Hl>: once finalized, it cannot be
+          restaked. Depositors withdraw and join a new pool to continue mining.
+          This prevents griefing where someone re-locks funds after an unstake cycle.
         </p>
       </Section>
 
@@ -74,13 +79,15 @@ export default function DocsPage() {
             calls <Code>mining.unstake()</Code> and starts the cooldown period (1-3 days).
             This prevents mid-epoch griefing while keeping exits fully permissionless.
           </Step>
-          <Step num={5} title="Finalize Withdraw" state="Unstaking → Idle">
+          <Step num={5} title="Finalize Withdraw" state="Unstaking - Finalized">
             After cooldown expires, anyone can finalize the withdrawal. Tokens return
-            from mining to the pool contract. The pool goes back to <StateBadge state="Idle" />.
+            from mining to the pool contract. The pool enters terminal <StateBadge state="Finalized" /> state.
+            No re-staking is possible.
           </Step>
-          <Step num={6} title="Withdraw" state="Idle">
-            When the pool is Idle, you can withdraw your principal deposit. Your share
-            is tracked on-chain and cannot be taken by anyone else.
+          <Step num={6} title="Withdraw" state="Finalized">
+            When the pool is Finalized, you can withdraw your principal deposit.
+            Withdrawing automatically claims any pending rewards in the same transaction.
+            To continue mining, join or create a new pool.
           </Step>
         </div>
       </Section>
@@ -96,7 +103,8 @@ export default function DocsPage() {
             <p className="text-xs text-text-dim leading-relaxed">
               Each epoch, BOTCOIN rewards are distributed to miners based on their
               credit share. Anyone can trigger <Code>Regular Claim</Code> to pull
-              rewards from the mining contract into the pool.
+              rewards from the mining contract into the pool. Rewards are tracked
+              per-epoch so depositors get their fair share based on when they staked.
             </p>
           </div>
           <div className="glass-card p-4">
@@ -160,9 +168,9 @@ export default function DocsPage() {
       <Section title="FAQ">
         <div className="space-y-4">
           <Faq q="Can I withdraw at any time?">
-            Only when the pool is Idle (not actively staked). If the pool is Active or
-            Unstaking, you need to wait for the unstake + cooldown + finalize cycle to
-            complete. Anyone can trigger these transitions.
+            Only when the pool is Idle (before staking) or Finalized (after the full
+            unstake + cooldown + finalize cycle). If the pool is Active or Unstaking,
+            you need to wait. Anyone can trigger the transitions to move toward Finalized.
           </Faq>
           <Faq q="What if the operator disappears?">
             The pool will stop earning new credits, but all fund recovery actions are
@@ -174,12 +182,19 @@ export default function DocsPage() {
             are immutable.
           </Faq>
           <Faq q="What happens to unclaimed rewards?">
-            They stay in the pool contract indefinitely. You can claim at any time,
-            there is no expiry.
+            They stay in the pool contract indefinitely. You can claim at any time.
+            When you withdraw in Finalized state, rewards are auto-claimed in the same
+            transaction.
           </Faq>
           <Faq q="Can I deposit into multiple pools?">
             Yes. Each pool is an independent contract. You can spread your BOTCOIN
             across multiple pools.
+          </Faq>
+          <Faq q="Why is the pool single-use?">
+            To prevent a griefing attack where someone re-stakes funds immediately after
+            an unstake cycle completes, locking depositors out of withdrawals. With a
+            single-use pool, once finalized, depositors are guaranteed access to their funds.
+            Create or join a new pool to continue mining.
           </Faq>
           <Faq q="Why is unstake a two-step process?">
             The spec requires that unstaking only happens at epoch boundaries to prevent
@@ -285,6 +300,7 @@ function StateBadge({ state }: { state: string }) {
     Idle: "text-muted bg-muted/10",
     Active: "text-success bg-success/10",
     Unstaking: "text-warn bg-warn/10",
+    Finalized: "text-base-blue-light bg-base-blue/10",
   };
   return (
     <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${colors[state] ?? ""}`}>

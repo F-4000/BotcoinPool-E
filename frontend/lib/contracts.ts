@@ -94,13 +94,6 @@ export const poolAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "topUpStake",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
   // -- Reward claiming --
   {
     inputs: [{ internalType: "uint64[]", name: "epochIds", type: "uint64[]" }],
@@ -142,11 +135,11 @@ export const poolAbi = [
       { internalType: "uint8", name: "state", type: "uint8" },
       { internalType: "uint256", name: "stakedInMining", type: "uint256" },
       { internalType: "uint256", name: "totalDep", type: "uint256" },
-      { internalType: "uint256", name: "rewardable", type: "uint256" },
+      { internalType: "uint256", name: "activeStake", type: "uint256" },
       { internalType: "uint64", name: "currentEpoch", type: "uint64" },
       { internalType: "bool", name: "eligible", type: "bool" },
       { internalType: "uint256", name: "cooldownEnd", type: "uint256" },
-      { internalType: "uint256", name: "pending", type: "uint256" },
+      { internalType: "uint256", name: "epochsClaimed", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
@@ -174,7 +167,7 @@ export const poolAbi = [
   },
   {
     inputs: [],
-    name: "totalRewardableStake",
+    name: "totalStakeAtActive",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -228,10 +221,18 @@ export const poolAbi = [
     stateMutability: "view",
     type: "function",
   },
+  // -- Epoch claim status --
   {
-    inputs: [],
-    name: "pendingDeposits",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    inputs: [{ internalType: "uint64", name: "epochId", type: "uint64" }],
+    name: "epochClaimed",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint64", name: "epochId", type: "uint64" }],
+    name: "bonusEpochClaimed",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },

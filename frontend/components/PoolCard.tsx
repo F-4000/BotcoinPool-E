@@ -7,12 +7,13 @@ import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 import BotStatus from "@/components/BotStatus";
 
-const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
+const POOL_STATES = ["Idle", "Active", "Unstaking", "Finalized"] as const;
 
 const STATE_BADGES: Record<string, { color: string; bg: string }> = {
   Idle: { color: "text-muted", bg: "bg-muted/10" },
   Active: { color: "text-success", bg: "bg-success/10" },
   Unstaking: { color: "text-warn", bg: "bg-warn/10" },
+  Finalized: { color: "text-base-blue-light", bg: "bg-base-blue/10" },
 };
 
 function compactNum(n: number): string {
@@ -49,7 +50,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
   const eligible = poolInfo?.[5] ?? false;
 
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : undefined;
-  const totalStake = totalDep; // totalDeposits includes staked + pending
+  const totalStake = totalDep;
 
   const isCapped = maxStake !== undefined && maxStake > 0n;
   const capPercent = isCapped && maxStake > 0n ? Number((totalStake * 100n) / maxStake) : 0;
@@ -73,6 +74,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
         <div className={`h-1.5 w-1.5 rounded-full ${
           stateName === "Active" ? "bg-success pulse-dot" :
           stateName === "Unstaking" ? "bg-warn pulse-dot" :
+          stateName === "Finalized" ? "bg-base-blue-light" :
           isFull ? "bg-danger" : "bg-muted"
         }`} />
 

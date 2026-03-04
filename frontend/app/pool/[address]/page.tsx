@@ -12,19 +12,21 @@ import BotStatus from "@/components/BotStatus";
 import OperatorSetup from "@/components/OperatorSetup";
 
 // Pool states matching the Solidity enum
-const POOL_STATES = ["Idle", "Active", "Unstaking"] as const;
+const POOL_STATES = ["Idle", "Active", "Unstaking", "Finalized"] as const;
 type PoolStateName = (typeof POOL_STATES)[number];
 
 const STATE_COLORS: Record<PoolStateName, string> = {
   Idle: "text-muted",
   Active: "text-success",
   Unstaking: "text-warn",
+  Finalized: "text-base-blue-light",
 };
 
 const STATE_DOTS: Record<PoolStateName, string> = {
   Idle: "bg-muted",
   Active: "bg-success pulse-dot",
   Unstaking: "bg-warn pulse-dot",
+  Finalized: "bg-base-blue-light",
 };
 
 export default function PoolPage() {
@@ -109,7 +111,6 @@ export default function PoolPage() {
   const { writeContract: requestUnstakeCall, data: requestUnstakeTx, isPending: isRequesting } = useWriteContract();
   const { writeContract: executeUnstakeCall, data: executeUnstakeTx, isPending: isExecutingUnstake } = useWriteContract();
   const { writeContract: finalizeCall, data: finalizeTx, isPending: isFinalizing } = useWriteContract();
-  const { writeContract: topUpCall, data: topUpTx, isPending: isToppingUp } = useWriteContract();
   const { writeContract: triggerClaimCall, data: triggerTx, isPending: isTriggering } = useWriteContract();
   const { writeContract: triggerBonusCall, data: triggerBonusTx, isPending: isTriggeringBonus } = useWriteContract();
   const { writeContract: setFeeCall, data: setFeeTx, isPending: isSettingFee } = useWriteContract();
@@ -125,7 +126,6 @@ export default function PoolPage() {
   const { isSuccess: requestUnstakeOk } = useWaitForTransactionReceipt({ hash: requestUnstakeTx });
   const { isSuccess: executeUnstakeOk } = useWaitForTransactionReceipt({ hash: executeUnstakeTx });
   const { isSuccess: finalizeOk } = useWaitForTransactionReceipt({ hash: finalizeTx });
-  const { isSuccess: topUpOk } = useWaitForTransactionReceipt({ hash: topUpTx });
   const { isSuccess: triggerOk } = useWaitForTransactionReceipt({ hash: triggerTx });
   const { isSuccess: triggerBonusOk } = useWaitForTransactionReceipt({ hash: triggerBonusTx });
   const { isSuccess: setFeeOk } = useWaitForTransactionReceipt({ hash: setFeeTx });
@@ -150,7 +150,6 @@ export default function PoolPage() {
   useEffect(() => { if (requestUnstakeOk) refetchAll(); }, [requestUnstakeOk, refetchAll]);
   useEffect(() => { if (executeUnstakeOk) refetchAll(); }, [executeUnstakeOk, refetchAll]);
   useEffect(() => { if (finalizeOk) refetchAll(); }, [finalizeOk, refetchAll]);
-  useEffect(() => { if (topUpOk) refetchAll(); }, [topUpOk, refetchAll]);
   useEffect(() => { if (triggerOk) refetchAll(); }, [triggerOk, refetchAll]);
   useEffect(() => { if (triggerBonusOk) refetchAll(); }, [triggerBonusOk, refetchAll]);
   useEffect(() => { if (setFeeOk) refetchAll(); }, [setFeeOk, refetchAll]);
@@ -173,8 +172,7 @@ export default function PoolPage() {
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : 0;
   const isOwner = userAddress && owner && userAddress.toLowerCase() === owner.toLowerCase();
 
-  const depositsLocked = poolStateName === "Unstaking";
-  const pendingDep = poolInfo?.[7] ?? 0n;
+  const depositsLocked = poolStateName !== "Idle";
 
   const depositWei = (() => {
     try { return depositAmount ? parseEther(depositAmount) : 0n; }
@@ -184,7 +182,7 @@ export default function PoolPage() {
 
   // Pool cap
   const isCapped = maxStake !== undefined && maxStake > 0n;
-  const effectiveTotal = totalDep; // totalDeposits already includes staked + pending
+  const effectiveTotal = totalDep;
   const remaining = isCapped ? (maxStake > effectiveTotal ? maxStake - effectiveTotal : 0n) : 0n;
   const overCap = isCapped && depositWei > 0n && depositWei > remaining;
   const poolFull = isCapped && remaining === 0n;
@@ -241,9 +239,6 @@ export default function PoolPage() {
   }
   function handleFinalizeWithdraw() {
     finalizeCall({ address, abi: poolAbi, functionName: "finalizeWithdraw" });
-  }
-  function handleTopUpStake() {
-    topUpCall({ address, abi: poolAbi, functionName: "topUpStake" });
   }
   function handleTriggerClaim() {
     if (epochNum === undefined || epochNum < 1) return;
@@ -326,7 +321,6 @@ export default function PoolPage() {
         <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-5 gap-4">
           <StatBlock label="Staked in Mining" value={fmtToken(stakedInMining)} accent />
           <StatBlock label="Total Deposits" value={fmtToken(totalDep)} />
-          {pendingDep > 0n && <StatBlock label="Pending (Unstaked)" value={fmtToken(pendingDep)} />}
           <StatBlock
             label="Tier"
             value={tier > 0 ? `Tier ${tier}` : "Below Tier 1"}
@@ -395,15 +389,6 @@ export default function PoolPage() {
           >
             {isFinalizing ? "Finalizing..." : "Finalize Withdraw"}
           </button>
-
-          {/* Top-Up Stake */}
-          <button
-            onClick={handleTopUpStake}
-            disabled={isToppingUp || !isConnected || poolStateName !== "Active" || pendingDep === 0n}
-            className="btn-ghost py-3 text-sm font-medium text-base-blue-light border-base-blue/30 hover:bg-base-blue/10 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {isToppingUp ? "Top-Up..." : pendingDep > 0n ? `Top-Up (${fmtToken(pendingDep)})` : "Top-Up Stake"}
-          </button>
         </div>
 
         {/* Unstake request status */}
@@ -434,8 +419,7 @@ export default function PoolPage() {
         {stakeOk && <p className="mt-2 text-xs glow-success">✓ Staked into mining</p>}
         {requestUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake requested, waiting for epoch end</p>}
         {executeUnstakeOk && <p className="mt-2 text-xs glow-success">✓ Unstake executed, cooldown started</p>}
-        {finalizeOk && <p className="mt-2 text-xs glow-success">✓ Withdraw finalized, funds back in pool</p>}
-        {topUpOk && <p className="mt-2 text-xs glow-success">✓ Pending deposits staked into mining</p>}
+        {finalizeOk && <p className="mt-2 text-xs glow-success">&#10003; Withdraw finalized, pool complete</p>}
       </div>
 
       {/* Action Panels */}
@@ -523,11 +507,11 @@ export default function PoolPage() {
               ) : (
                 <button onClick={handleDeposit} disabled={isDepositing || depositWei === 0n || overCap || poolFull || depositsLocked}
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isDepositing ? "Depositing..." : depositsLocked ? "Pool Unstaking" : poolStateName === "Active" ? "Deposit (Pending)" : "Deposit"}
+                  {isDepositing ? "Depositing..." : depositsLocked ? "Deposits Closed" : "Deposit"}
                 </button>
               )}
               <p className="text-center text-[11px] text-muted">
-                {poolStateName === "Active" ? "Deposit goes to pending — use Top-Up to stake" : "Deposits accepted when pool is Idle or Active"}
+                {poolStateName === "Idle" ? "Deposits accepted while pool is Idle" : "This is a single-use pool. Deposits closed after staking."}
               </p>
             </div>
           ) : (
@@ -552,9 +536,9 @@ export default function PoolPage() {
                 </div>
               </div>
 
-              {poolStateName !== "Idle" && (
+              {poolStateName !== "Idle" && poolStateName !== "Finalized" && (
                 <p className="text-xs text-warn">
-                  Withdrawals only available when pool is Idle (after unstake + cooldown + finalize).
+                  Withdrawals only available when pool is Idle or Finalized.
                 </p>
               )}
 
@@ -562,13 +546,13 @@ export default function PoolPage() {
                 <p className="text-center text-xs text-muted">Connect wallet to withdraw</p>
               ) : (
                 <button onClick={handleWithdraw}
-                  disabled={isWithdrawing || !withdrawAmount || poolStateName !== "Idle"}
+                  disabled={isWithdrawing || !withdrawAmount || (poolStateName !== "Idle" && poolStateName !== "Finalized")}
                   className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   {isWithdrawing ? "Withdrawing..." : "Withdraw"}
                 </button>
               )}
               <p className="text-center text-[11px] text-muted">
-                Pool must be Idle to withdraw principal
+                Pool must be Idle or Finalized to withdraw. Finalized withdrawals auto-claim rewards.
               </p>
             </div>
           )}

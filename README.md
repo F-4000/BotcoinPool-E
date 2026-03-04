@@ -1,6 +1,6 @@
 # BotcoinPool
 
-Trustless mining pool for [Botcoin](https://agentmoney.net/) on Base. Pool BOTCOIN tokens to meet mining tier thresholds (25M / 50M / 100M) and earn proportional rewards.
+Trustless, single-use mining pool for [Botcoin](https://agentmoney.net/) on Base. Pool BOTCOIN tokens to meet mining tier thresholds (25M / 50M / 100M) and earn proportional rewards per epoch.
 
 - [Botcoin Wirepaper](https://agentmoney.net/wirepaper.md)
 - [Twitter / X](https://x.com/MineBotcoin)
@@ -11,7 +11,7 @@ Trustless mining pool for [Botcoin](https://agentmoney.net/) on Base. Pool BOTCO
 
 | Contract | Address |
 |---|---|
-| **BotcoinPoolFactoryV2** | [`0x61A60f14b1C5a84c370184f27445B095c02F19FA`](https://basescan.org/address/0x61A60f14b1C5a84c370184f27445B095c02F19FA#code) |
+| **BotcoinPoolFactoryV2** | [`0x71B9716A0A90Ae67B5CEf426da30F6D5D3ba6EeC`](https://basescan.org/address/0x71B9716A0A90Ae67B5CEf426da30F6D5D3ba6EeC#code) |
 | BotcoinMiningV2 | [`0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716`](https://basescan.org/address/0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716) |
 | BonusEpoch | [`0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8`](https://basescan.org/address/0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8) |
 | BOTCOIN Token | [`0xA601877977340862Ca67f816eb079958E5bd0BA3`](https://basescan.org/token/0xA601877977340862Ca67f816eb079958E5bd0BA3) |
@@ -53,7 +53,7 @@ frontend/
     utils.ts                 # Formatting helpers
   public/bot/                # Bot files served as static assets for zip download
 test/
-  BotcoinPoolV2.cjs          # 43 tests
+  BotcoinPoolV2.cjs          # 53 tests
 ```
 
 ## Architecture
@@ -61,35 +61,37 @@ test/
 ### Pool Lifecycle
 
 ```
-Idle ──► Active ──► Unstaking ──► Idle
-  │         │           │           │
-deposit  stakeInto   triggerUn   finalize
-          Mining      stake      Withdraw
+Idle ──> Active ──> Unstaking ──> Finalized
+  │         │           │              │
+deposit  stakeInto   request/      withdraw
+          Mining     execute        + auto-claim
+                     Unstake
 ```
 
 1. **Idle** - Deposits accepted. Tokens sit in pool contract.
 2. **Active** - Pool has staked into MiningV2. Mining in progress, credits accumulating.
-3. **Unstaking** - Cooldown running (1-3 days). Anyone can cancel (owner/operator) or finalize after cooldown.
+3. **Unstaking** - Cooldown running (1-3 days). Anyone can finalize after cooldown.
+4. **Finalized** - Terminal state. Depositors withdraw principal + rewards. No re-staking.
 
-All state transitions are **permissionless** (except `cancelUnstake` which is owner/operator only).
+All state transitions are **permissionless**. Pools are **single-use** — once finalized, depositors join a new pool to continue mining.
 
 ### Contracts
 
 | Contract | Purpose |
 |---|---|
-| `BotcoinPoolV2.sol` | Core pool. Persistent staking into MiningV2, Synthetix-style reward distribution, EIP-1271 auth, operator selector whitelist. |
+| `BotcoinPoolV2.sol` | Core pool. Single-use lifecycle, per-epoch reward snapshots, EIP-1271 auth, operator selector whitelist. |
 | `BotcoinPoolFactoryV2.sol` | Deploys pools with shared MiningV2/BonusEpoch refs and immutable protocol fee (1%). |
 
 ### Key Design Decisions
 
 - **Persistent staking** - Stake persists across epochs, no recommit needed
-- **Deposits only when Idle** - Prevents reward dilution mid-epoch
+- **Deposits only when Idle** - No mid-cycle deposits; prevents reward dilution
+- **Per-epoch reward accounting** - Deposits snapshotted at stake time, rewards tracked per epoch
 - **Permissionless claiming** - `triggerClaim(epochIds)` and `triggerBonusClaim(epochIds)` callable by anyone
 - **Dual fee model** - Protocol fee (1%, immutable) + operator fee (max 10%, can only decrease)
 - **Immutable stake caps** - Set at creation, capped at 100M (Tier 3 max)
 - **Operator selector whitelist** - Owner whitelists 4-byte selectors the operator can forward to MiningV2
 - **EIP-1271** - Pool validates operator signatures for coordinator authentication
-- **O(1) gas rewards** - Synthetix `rewardPerToken` accumulator, no loops
 
 ### Security
 
