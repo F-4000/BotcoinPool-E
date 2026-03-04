@@ -40,9 +40,11 @@ interface IBonusEpoch {
 // ── Pool lifecycle ───────────────────────────────────────────────────
 
 /// @title BotcoinPoolV2
-/// @notice Non-custodial mining pool — deposits stake persistently into
-///         BotcoinMiningV2. Reward claiming and unstake lifecycle are
-///         fully permissionless; no admin gate on exits.
+/// @notice Single-use, non-custodial mining pool with per-epoch reward
+///         accounting. Deposits accepted only while Idle; once staked
+///         into mining the pool runs until unstake + cooldown, then
+///         enters terminal Finalized state. No re-staking — depositors
+///         withdraw and join a new pool to continue mining.
 contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -50,13 +52,14 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
 
     // ── Enums ────────────────────────────────────────────────────────
     enum PoolState {
-        Idle,        // No funds staked in mining; deposits accumulate
-        Active,      // Funds staked, mining in progress
-        Unstaking    // unstake() called on MiningV2; cooldown running
+        Idle,        // Deposits accumulate; not yet staked
+        Active,      // Funds staked in mining; earning credits
+        Unstaking,   // unstake() called; cooldown running
+        Finalized    // Terminal — withdraw principal + claim rewards
     }
 
     // ── Immutables ───────────────────────────────────────────────────
-    IERC20   public immutable stakingToken;
+    IERC20    public immutable stakingToken;
     IMiningV2 public immutable mining;
     IBonusEpoch public immutable bonusEpoch;
 
@@ -64,8 +67,8 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     uint256 public immutable protocolFeeBps;
     uint256 public immutable maxStake; // 0 = unlimited (capped at 100M)
 
-    uint256 public constant MAX_FEE_BPS = 1000;       // 10 %
-    uint256 public constant MAX_PROTOCOL_FEE_BPS = 500; // 5 %
+    uint256 public constant MAX_FEE_BPS = 1000;         // 10 %
+    uint256 public constant MAX_PROTOCOL_FEE_BPS = 500;  // 5 %
     uint256 public constant MINING_MAX_STAKE = 100_000_000 * 1e18;
 
     bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
@@ -76,15 +79,30 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
 
     PoolState public poolState;       // lifecycle tracker
 
-    // Per-user principal accounting
+    // ── Principal accounting ─────────────────────────────────────────
     mapping(address => uint256) public userDeposit;
-    uint256 public totalDeposits;     // sum of all userDeposit (principal)
+    uint256 public totalDeposits;
 
-    // Synthetix reward accumulator (for distributing claimed rewards)
-    uint256 public rewardPerTokenStored;
-    mapping(address => uint256) public userRewardPerTokenPaid;
-    mapping(address => uint256) public rewards;
-    uint256 public totalRewardableStake; // denominator for reward distribution
+    // ── Reward accounting (per-epoch) ────────────────────────────────
+    /// @dev Frozen copy of each user's deposit at the time of staking.
+    ///      Used as the numerator for reward calculation. Never modified
+    ///      after stakeIntoMining(), so late withdrawals don't distort
+    ///      reward shares.
+    mapping(address => uint256) public rewardDeposit;
+
+    /// @dev Snapshot of totalDeposits at the time of stakeIntoMining().
+    ///      Used as the denominator for all reward distributions.
+    uint256 public totalStakeAtActive;
+
+    // Regular epoch rewards
+    mapping(uint64 => uint256) public epochRewardNet;   // net reward after fees
+    uint64[] internal _claimedEpochs;                    // ordered list
+    mapping(address => uint256) public userClaimedUpTo;  // cursor into _claimedEpochs
+
+    // Bonus epoch rewards
+    mapping(uint64 => uint256) public bonusRewardNet;
+    uint64[] internal _claimedBonusEpochs;
+    mapping(address => uint256) public userBonusClaimedUpTo;
 
     // Operator selector whitelist (for submitReceipt forwarding)
     mapping(bytes4 => bool) public allowedOperatorSelectors;
@@ -92,18 +110,14 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     // Epoch-boundary unstake gating
     uint64 public unstakeRequestEpoch; // 0 = no pending request
 
-    // Pending deposits (received while Active, not yet staked in mining)
-    uint256 public pendingDeposits;
-
     // ── Events ───────────────────────────────────────────────────────
     event Deposited(address indexed user, uint256 amount);
-    event ShareWithdrawn(address indexed user, uint256 amount);
+    event ShareWithdrawn(address indexed user, uint256 principal, uint256 reward);
     event StakedIntoMining(uint256 amount, uint256 totalStaked);
     event UnstakeRequested(uint64 epoch);
     event UnstakeExecuted(uint64 epoch);
     event WithdrawFinalized(uint256 amount);
-    event RewardsClaimed(uint256 regular, uint256 bonus);
-    event RewardsDistributed(uint256 amount);
+    event RewardsClaimed(uint64 indexed epochId, uint256 gross, uint256 net, bool isBonus);
     event RewardPaid(address indexed user, uint256 amount);
     event OperatorChanged(address indexed oldOp, address indexed newOp);
     event FeeUpdated(uint256 newFeeBps);
@@ -144,32 +158,18 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         _;
     }
 
-    modifier updateReward(address account) {
-        if (account != address(0) && totalRewardableStake > 0) {
-            rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
-        }
-        _;
-    }
-
     // ═══════════════════════════════════════════════════════════════════
-    //  1. DEPOSIT — user adds BOTCOIN to the pool
+    //  1. DEPOSIT — user adds BOTCOIN to the pool (Idle only)
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Deposit BOTCOIN into the pool.
-    ///         In Idle: tokens sit in the contract until stakeIntoMining().
-    ///         In Active: tokens are held as pending; call topUpStake() to
-    ///         push them into mining. Pending deposits share rewards
-    ///         proportionally from deposit time (fair dilution).
-    function deposit(uint256 amount) external nonReentrant updateReward(msg.sender) {
+    /// @notice Deposit BOTCOIN into the pool. Only available while Idle
+    ///         (before staking into mining). Once staked, deposits are
+    ///         closed for the life of this pool.
+    function deposit(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
-        require(
-            poolState == PoolState.Idle || poolState == PoolState.Active,
-            "Deposits closed"
-        );
+        require(poolState == PoolState.Idle, "Deposits closed");
 
         uint256 effective = totalDeposits + amount;
-
         require(effective <= MINING_MAX_STAKE, "Exceeds mining max");
         if (maxStake > 0) {
             require(effective <= maxStake, "Pool cap reached");
@@ -177,32 +177,28 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
 
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
 
-        userDeposit[msg.sender] += amount;
-        totalDeposits += amount;
-        totalRewardableStake += amount;
-
-        if (poolState == PoolState.Active) {
-            // Track subset that hasn't been staked in mining yet
-            pendingDeposits += amount;
-        }
+        userDeposit[msg.sender]    += amount;
+        rewardDeposit[msg.sender]  += amount;
+        totalDeposits              += amount;
 
         emit Deposited(msg.sender, amount);
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  2. STAKE INTO MINING — permissionless
+    //  2. STAKE INTO MINING — permissionless, one-time
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Push the pool's idle BOTCOIN balance into MiningV2.stake().
-    ///         Anyone can call this. After staking, pool enters Active.
-    ///         Only stakes totalDeposits — unclaimed rewards stay liquid.
+    /// @notice Push the pool's BOTCOIN into MiningV2.stake().
+    ///         Permissionless. Sets totalStakeAtActive as the frozen
+    ///         denominator for all future reward distributions.
     function stakeIntoMining() external nonReentrant {
         require(poolState == PoolState.Idle, "Pool not idle");
 
         uint256 toStake = totalDeposits;
         require(toStake > 0, "Nothing to stake");
 
-        // Approve MiningV2 to pull tokens
+        totalStakeAtActive = toStake;
+
         stakingToken.forceApprove(address(mining), toStake);
         mining.stake(toStake);
 
@@ -211,30 +207,13 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         emit StakedIntoMining(toStake, mining.stakedAmount(address(this)));
     }
 
-    /// @notice Push pending deposits into mining while pool is Active.
-    ///         Anyone can call. This allows mid-cycle growth without an
-    ///         unstake round-trip.  totalDeposits/totalRewardableStake are
-    ///         already up-to-date — this just moves tokens into mining.
-    function topUpStake() external nonReentrant {
-        require(poolState == PoolState.Active, "Pool not active");
-        require(pendingDeposits > 0, "No pending deposits");
-
-        uint256 amount = pendingDeposits;
-        pendingDeposits = 0;
-
-        stakingToken.forceApprove(address(mining), amount);
-        mining.stake(amount);
-
-        emit StakedIntoMining(amount, mining.stakedAmount(address(this)));
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  3. UNSTAKE — permissionless, epoch-boundary gated
     // ═══════════════════════════════════════════════════════════════════
 
     /// @notice Request an unstake. Permissionless — anyone can call.
-    ///         The request is queued for the current epoch. The actual
-    ///         unstake can only be executed after the epoch advances.
+    ///         Queued for the current epoch; execution requires the
+    ///         epoch to have ended.
     function requestUnstake() external nonReentrant {
         require(poolState == PoolState.Active, "Pool not active");
         require(unstakeRequestEpoch == 0, "Unstake already requested");
@@ -242,9 +221,8 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         emit UnstakeRequested(unstakeRequestEpoch);
     }
 
-    /// @notice Execute a pending unstake request. Permissionless.
-    ///         Only succeeds after the epoch in which the request was
-    ///         made has ended, preventing mid-epoch unstake griefing.
+    /// @notice Execute the pending unstake. Permissionless.
+    ///         Only succeeds after the request epoch has ended.
     function executeUnstake() external nonReentrant {
         require(poolState == PoolState.Active, "Pool not active");
         require(unstakeRequestEpoch > 0, "No unstake request");
@@ -257,24 +235,24 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  4. FINALIZE WITHDRAW — permissionless after cooldown
+    //  4. FINALIZE WITHDRAW — permissionless, terminal
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Complete the withdrawal from MiningV2 once cooldown expires.
-    ///         Tokens return to the pool contract. Anyone can call.
+    /// @notice Complete the withdrawal from MiningV2 once cooldown
+    ///         expires. Pool enters terminal Finalized state — no
+    ///         re-staking. Depositors withdraw principal + claim rewards.
     function finalizeWithdraw() external nonReentrant {
         require(poolState == PoolState.Unstaking, "Not unstaking");
-        require(block.timestamp >= mining.withdrawableAt(address(this)), "Cooldown not expired");
+        require(
+            block.timestamp >= mining.withdrawableAt(address(this)),
+            "Cooldown not expired"
+        );
 
         uint256 balBefore = stakingToken.balanceOf(address(this));
         mining.withdraw();
         uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
 
-        // All deposits are now in the contract (returned from mining + any
-        // that were pending). Reset pending counter for next cycle.
-        pendingDeposits = 0;
-
-        _setPoolState(PoolState.Idle);
+        _setPoolState(PoolState.Finalized);
         emit WithdrawFinalized(received);
     }
 
@@ -282,81 +260,186 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     //  5. USER PRINCIPAL WITHDRAWAL
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Withdraw your principal deposit. Only available when pool
-    ///         is Idle (funds are in the contract, not staked in mining).
-    function withdrawShare(uint256 amount) external nonReentrant updateReward(msg.sender) {
+    /// @notice Withdraw principal. In Idle: free withdrawal before
+    ///         staking. In Finalized: auto-claims all pending rewards
+    ///         and returns them alongside principal in one transfer.
+    function withdrawShare(uint256 amount) external nonReentrant {
         require(amount > 0, "Zero amount");
-        require(poolState == PoolState.Idle, "Funds staked in mining");
+        require(
+            poolState == PoolState.Idle || poolState == PoolState.Finalized,
+            "Funds staked in mining"
+        );
         require(userDeposit[msg.sender] >= amount, "Exceeds deposit");
+
+        // In Finalized, settle all pending epoch rewards first
+        uint256 reward = 0;
+        if (poolState == PoolState.Finalized) {
+            reward = _settleReward(msg.sender);
+        }
 
         userDeposit[msg.sender] -= amount;
         totalDeposits -= amount;
-        totalRewardableStake -= amount;
 
-        stakingToken.safeTransfer(msg.sender, amount);
-        emit ShareWithdrawn(msg.sender, amount);
+        // In Idle (pre-staking), adjust reward-eligible tracking too
+        if (poolState == PoolState.Idle) {
+            rewardDeposit[msg.sender] -= amount;
+        }
+
+        uint256 payout = amount + reward;
+        stakingToken.safeTransfer(msg.sender, payout);
+
+        if (reward > 0) emit RewardPaid(msg.sender, reward);
+        emit ShareWithdrawn(msg.sender, amount, reward);
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  6. REWARD CLAIMING — Regular + Bonus (permissionless trigger)
+    //  6. REWARD CLAIMING — Per-epoch, permissionless
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Anyone can trigger a regular reward claim from MiningV2.
-    ///         Rewards are distributed pro-rata to depositors net of fees.
+    /// @notice Trigger regular reward claims from MiningV2, one epoch
+    ///         at a time. Records net reward per epoch for fair
+    ///         per-epoch distribution. Skips already-claimed epochs.
     function triggerClaim(uint64[] calldata epochIds) external nonReentrant {
-        require(totalRewardableStake > 0, "No stakers");
-        uint256 balBefore = stakingToken.balanceOf(address(this));
-        mining.claim(epochIds);
-        uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
+        require(totalStakeAtActive > 0, "No active stake");
 
-        if (received > 0) {
-            _distributeRewards(received);
-            emit RewardsClaimed(received, 0);
+        uint256 totalProtocolFee = 0;
+        uint256 totalOperatorFee = 0;
+        uint64[] memory single = new uint64[](1);
+
+        for (uint256 i = 0; i < epochIds.length; i++) {
+            // Skip epochs already claimed on mining contract
+            if (mining.claimed(epochIds[i], address(this))) continue;
+
+            uint256 balBefore = stakingToken.balanceOf(address(this));
+            single[0] = epochIds[i];
+            mining.claim(single);
+            uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
+
+            if (received > 0) {
+                (uint256 pFee, uint256 oFee, uint256 net) = _splitFees(received);
+                totalProtocolFee += pFee;
+                totalOperatorFee += oFee;
+
+                epochRewardNet[epochIds[i]] = net;
+                _claimedEpochs.push(epochIds[i]);
+
+                emit RewardsClaimed(epochIds[i], received, net, false);
+            }
         }
+
+        _transferFees(totalProtocolFee, totalOperatorFee);
     }
 
-    /// @notice Anyone can trigger a bonus epoch reward claim.
+    /// @notice Trigger bonus reward claims, one epoch at a time.
     function triggerBonusClaim(uint64[] calldata epochIds) external nonReentrant {
-        require(totalRewardableStake > 0, "No stakers");
-        uint256 balBefore = stakingToken.balanceOf(address(this));
-        bonusEpoch.claimBonus(epochIds);
-        uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
+        require(totalStakeAtActive > 0, "No active stake");
 
-        if (received > 0) {
-            _distributeRewards(received);
-            emit RewardsClaimed(0, received);
+        uint256 totalProtocolFee = 0;
+        uint256 totalOperatorFee = 0;
+        uint64[] memory single = new uint64[](1);
+
+        for (uint256 i = 0; i < epochIds.length; i++) {
+            if (bonusEpoch.bonusClaimed(epochIds[i], address(this))) continue;
+
+            uint256 balBefore = stakingToken.balanceOf(address(this));
+            single[0] = epochIds[i];
+            bonusEpoch.claimBonus(single);
+            uint256 received = stakingToken.balanceOf(address(this)) - balBefore;
+
+            if (received > 0) {
+                (uint256 pFee, uint256 oFee, uint256 net) = _splitFees(received);
+                totalProtocolFee += pFee;
+                totalOperatorFee += oFee;
+
+                bonusRewardNet[epochIds[i]] = net;
+                _claimedBonusEpochs.push(epochIds[i]);
+
+                emit RewardsClaimed(epochIds[i], received, net, true);
+            }
         }
+
+        _transferFees(totalProtocolFee, totalOperatorFee);
     }
 
-    /// @notice Depositor claims their accumulated reward share.
-    function claimReward() external nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewards[msg.sender];
-        if (reward > 0) {
-            rewards[msg.sender] = 0;
-            stakingToken.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
-        }
+    /// @notice Depositor claims accumulated rewards (regular + bonus).
+    function claimReward() external nonReentrant {
+        uint256 reward = _settleReward(msg.sender);
+        require(reward > 0, "No rewards");
+        stakingToken.safeTransfer(msg.sender, reward);
+        emit RewardPaid(msg.sender, reward);
     }
 
-    /// @dev Internal: take fees and distribute to reward accumulator.
-    function _distributeRewards(uint256 amount) internal {
-        // Protocol fee
-        uint256 protocolFee = (amount * protocolFeeBps) / 10000;
+    // ── Internal reward helpers ──────────────────────────────────────
+
+    /// @dev Compute and advance cursors. Returns total reward to pay.
+    function _settleReward(address user) internal returns (uint256) {
+        if (totalStakeAtActive == 0) return 0;
+        uint256 dep = rewardDeposit[user];
+        if (dep == 0) return 0;
+
+        uint256 total = 0;
+
+        // Regular epochs
+        uint256 start = userClaimedUpTo[user];
+        uint256 end   = _claimedEpochs.length;
+        for (uint256 i = start; i < end; i++) {
+            total += (epochRewardNet[_claimedEpochs[i]] * dep) / totalStakeAtActive;
+        }
+        userClaimedUpTo[user] = end;
+
+        // Bonus epochs
+        start = userBonusClaimedUpTo[user];
+        end   = _claimedBonusEpochs.length;
+        for (uint256 i = start; i < end; i++) {
+            total += (bonusRewardNet[_claimedBonusEpochs[i]] * dep) / totalStakeAtActive;
+        }
+        userBonusClaimedUpTo[user] = end;
+
+        return total;
+    }
+
+    /// @dev Read-only version of _settleReward.
+    function _pendingReward(address user) internal view returns (uint256) {
+        if (totalStakeAtActive == 0) return 0;
+        uint256 dep = rewardDeposit[user];
+        if (dep == 0) return 0;
+
+        uint256 total = 0;
+
+        uint256 start = userClaimedUpTo[user];
+        uint256 end   = _claimedEpochs.length;
+        for (uint256 i = start; i < end; i++) {
+            total += (epochRewardNet[_claimedEpochs[i]] * dep) / totalStakeAtActive;
+        }
+
+        start = userBonusClaimedUpTo[user];
+        end   = _claimedBonusEpochs.length;
+        for (uint256 i = start; i < end; i++) {
+            total += (bonusRewardNet[_claimedBonusEpochs[i]] * dep) / totalStakeAtActive;
+        }
+
+        return total;
+    }
+
+    /// @dev Split gross reward into protocol fee, operator fee, and net.
+    function _splitFees(uint256 gross) internal view returns (
+        uint256 protocolFee,
+        uint256 operatorFee,
+        uint256 net
+    ) {
+        protocolFee = (gross * protocolFeeBps) / 10000;
+        uint256 afterProtocol = gross - protocolFee;
+        operatorFee = (afterProtocol * feeBps) / 10000;
+        net = afterProtocol - operatorFee;
+    }
+
+    /// @dev Batch-transfer accumulated fees.
+    function _transferFees(uint256 protocolFee, uint256 operatorFee) internal {
         if (protocolFee > 0) {
             stakingToken.safeTransfer(protocolFeeRecipient, protocolFee);
         }
-
-        // Operator fee
-        uint256 afterProtocol = amount - protocolFee;
-        uint256 operatorFee = (afterProtocol * feeBps) / 10000;
         if (operatorFee > 0) {
             stakingToken.safeTransfer(operator, operatorFee);
-        }
-
-        uint256 toDistribute = afterProtocol - operatorFee;
-        if (toDistribute > 0 && totalRewardableStake > 0) {
-            rewardPerTokenStored += (toDistribute * 1e18) / totalRewardableStake;
-            emit RewardsDistributed(toDistribute);
         }
     }
 
@@ -364,8 +447,8 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     //  7. OPERATOR / SOLVER INTEGRATION
     // ═══════════════════════════════════════════════════════════════════
 
-    /// @notice Operator forwards submitReceipt (or other whitelisted calls)
-    ///         to MiningV2 so msg.sender = this pool.
+    /// @notice Operator forwards submitReceipt (or other whitelisted
+    ///         calls) to MiningV2 so msg.sender = this pool.
     function submitToMining(bytes calldata data) external onlyOperator nonReentrant {
         require(data.length >= 4, "Calldata too short");
         bytes4 selector = bytes4(data[:4]);
@@ -381,7 +464,7 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         }
     }
 
-    /// @notice EIP-1271: validate operator's signature for coordinator auth.
+    /// @notice EIP-1271: validate operator's signature for coordinator.
     function isValidSignature(bytes32 _hash, bytes memory _signature)
         external view override returns (bytes4)
     {
@@ -414,10 +497,39 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
     //  9. VIEW HELPERS
     // ═══════════════════════════════════════════════════════════════════
 
+    /// @notice Pending (unclaimed) reward for a user.
     function earned(address account) public view returns (uint256) {
-        if (totalRewardableStake == 0) return rewards[account];
-        return rewards[account]
-            + (userDeposit[account] * (rewardPerTokenStored - userRewardPerTokenPaid[account])) / 1e18;
+        return _pendingReward(account);
+    }
+
+    /// @notice Check if the pool has claimed regular rewards for an epoch.
+    function epochClaimed(uint64 epochId) external view returns (bool) {
+        return mining.claimed(epochId, address(this));
+    }
+
+    /// @notice Check if the pool has claimed bonus rewards for an epoch.
+    function bonusEpochClaimed(uint64 epochId) external view returns (bool) {
+        return bonusEpoch.bonusClaimed(epochId, address(this));
+    }
+
+    /// @notice Number of regular epochs claimed by the pool.
+    function claimedEpochCount() external view returns (uint256) {
+        return _claimedEpochs.length;
+    }
+
+    /// @notice Epoch ID at a given index in the claimed list.
+    function claimedEpochAt(uint256 index) external view returns (uint64) {
+        return _claimedEpochs[index];
+    }
+
+    /// @notice Number of bonus epochs claimed by the pool.
+    function claimedBonusEpochCount() external view returns (uint256) {
+        return _claimedBonusEpochs.length;
+    }
+
+    /// @notice Bonus epoch ID at a given index.
+    function claimedBonusEpochAt(uint256 index) external view returns (uint64) {
+        return _claimedBonusEpochs[index];
     }
 
     /// @notice Get a user's deposit and claimable reward in one call.
@@ -426,9 +538,9 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         uint256 pendingReward,
         uint256 shareOfPool // bps out of 10000
     ) {
-        depositAmt = userDeposit[user];
-        pendingReward = earned(user);
-        shareOfPool = totalDeposits > 0
+        depositAmt    = userDeposit[user];
+        pendingReward = _pendingReward(user);
+        shareOfPool   = totalDeposits > 0
             ? (depositAmt * 10000) / totalDeposits
             : 0;
     }
@@ -438,20 +550,20 @@ contract BotcoinPoolV2 is Ownable, ReentrancyGuard, IERC1271 {
         PoolState state,
         uint256 stakedInMining,
         uint256 totalDep,
-        uint256 rewardable,
+        uint256 activeStake,
         uint64  currentEpoch,
         bool    eligible,
         uint256 cooldownEnd,
-        uint256 pending
+        uint256 epochsClaimed
     ) {
         state          = poolState;
         stakedInMining = mining.stakedAmount(address(this));
         totalDep       = totalDeposits;
-        rewardable     = totalRewardableStake;
+        activeStake    = totalStakeAtActive;
         currentEpoch   = mining.currentEpoch();
         eligible       = mining.isEligible(address(this));
         cooldownEnd    = mining.withdrawableAt(address(this));
-        pending        = pendingDeposits;
+        epochsClaimed  = _claimedEpochs.length + _claimedBonusEpochs.length;
     }
 
     // ── Internal helpers ─────────────────────────────────────────────

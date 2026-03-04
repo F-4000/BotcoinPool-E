@@ -48,6 +48,16 @@ describe("BotcoinPoolV2 Integration", function () {
     await token.mint(bob.address, parseE(50_000_000));
   });
 
+  // ── Helper: full unstake cycle to Finalized ──────────────────────
+  async function finalizeCycle() {
+    await pool.requestUnstake();
+    await mining.setEpoch(2);
+    await pool.executeUnstake();
+    await ethers.provider.send("evm_increaseTime", [86401]);
+    await ethers.provider.send("evm_mine");
+    await pool.finalizeWithdraw();
+  }
+
   describe("Factory", function () {
     it("should register the pool", async function () {
       const pools = await factory.getPools();
@@ -78,16 +88,15 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.connect(alice).deposit(TIER1);
 
       expect(await pool.userDeposit(alice.address)).to.equal(TIER1);
+      expect(await pool.rewardDeposit(alice.address)).to.equal(TIER1);
       expect(await pool.totalDeposits()).to.equal(TIER1);
     });
 
     it("should reject deposits exceeding pool cap", async function () {
       const cap = TIER3;
-      // Alice deposits 100M (the cap)
       await token.connect(alice).approve(await pool.getAddress(), cap);
       await pool.connect(alice).deposit(cap);
 
-      // Bob tries to deposit 1 more
       await token.connect(bob).approve(await pool.getAddress(), 1n);
       await expect(pool.connect(bob).deposit(1n)).to.be.reverted;
     });
@@ -96,20 +105,13 @@ describe("BotcoinPoolV2 Integration", function () {
       await expect(pool.connect(alice).deposit(0)).to.be.revertedWith("Zero amount");
     });
 
-    it("should accept deposits when pool is Active (tracked as pending)", async function () {
+    it("should reject deposits when pool is Active", async function () {
       await token.connect(alice).approve(await pool.getAddress(), TIER1);
       await pool.connect(alice).deposit(TIER1);
       await pool.stakeIntoMining();
 
-      // Bob deposits while Active — goes to pending
-      const bobAmt = parseE(1_000_000);
-      await token.connect(bob).approve(await pool.getAddress(), bobAmt);
-      await pool.connect(bob).deposit(bobAmt);
-
-      expect(await pool.pendingDeposits()).to.equal(bobAmt);
-      expect(await pool.userDeposit(bob.address)).to.equal(bobAmt);
-      // totalDeposits includes pending
-      expect(await pool.totalDeposits()).to.equal(TIER1 + bobAmt);
+      await token.connect(bob).approve(await pool.getAddress(), parseE(1));
+      await expect(pool.connect(bob).deposit(parseE(1))).to.be.revertedWith("Deposits closed");
     });
 
     it("should reject deposits when pool is Unstaking", async function () {
@@ -124,6 +126,27 @@ describe("BotcoinPoolV2 Integration", function () {
       await token.connect(bob).approve(await pool.getAddress(), parseE(1));
       await expect(pool.connect(bob).deposit(parseE(1))).to.be.revertedWith("Deposits closed");
     });
+
+    it("should reject deposits when pool is Finalized", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      await token.connect(bob).approve(await pool.getAddress(), parseE(1));
+      await expect(pool.connect(bob).deposit(parseE(1))).to.be.revertedWith("Deposits closed");
+    });
+
+    it("should allow Idle withdrawal and adjust rewardDeposit", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+
+      await pool.connect(alice).withdrawShare(TIER1);
+
+      expect(await pool.userDeposit(alice.address)).to.equal(0);
+      expect(await pool.rewardDeposit(alice.address)).to.equal(0);
+      expect(await pool.totalDeposits()).to.equal(0);
+    });
   });
 
   describe("Stake into Mining", function () {
@@ -132,11 +155,12 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.connect(alice).deposit(TIER1);
     });
 
-    it("should stake deposits into MiningV2", async function () {
+    it("should stake deposits and set totalStakeAtActive", async function () {
       await pool.stakeIntoMining();
 
       expect(await pool.poolState()).to.equal(1); // Active
       expect(await mining.stakedAmount(await pool.getAddress())).to.equal(TIER1);
+      expect(await pool.totalStakeAtActive()).to.equal(TIER1);
     });
 
     it("should be callable by anyone (permissionless)", async function () {
@@ -145,89 +169,28 @@ describe("BotcoinPoolV2 Integration", function () {
     });
 
     it("should reject if nothing to stake", async function () {
-      await pool.stakeIntoMining(); // works (has TIER1 from beforeEach)
-      // unstake cycle to get back to Idle
-      await pool.connect(bob).requestUnstake();
-      await mining.setEpoch(2); // advance epoch
-      await pool.connect(bob).executeUnstake();
-      await ethers.provider.send("evm_increaseTime", [86401]);
-      await ethers.provider.send("evm_mine");
-      await pool.connect(bob).finalizeWithdraw();
-      // Withdraw all
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      // Withdraw everything
       await pool.connect(alice).withdrawShare(TIER1);
-      // Now pool is Idle with 0 deposits
-      await expect(pool.stakeIntoMining()).to.be.revertedWith("Nothing to stake");
+
+      // Pool is Finalized — can't stake again
+      await expect(pool.stakeIntoMining()).to.be.revertedWith("Pool not idle");
     });
 
     it("should reject re-staking when already active", async function () {
-      await pool.stakeIntoMining(); // first call works
+      await pool.stakeIntoMining();
       await expect(pool.stakeIntoMining()).to.be.revertedWith("Pool not idle");
     });
-  });
 
-  describe("Top-Up Stake (mid-cycle deposits)", function () {
-    beforeEach(async function () {
-      await token.connect(alice).approve(await pool.getAddress(), TIER1);
-      await pool.connect(alice).deposit(TIER1);
+    it("should be permanently blocked after Finalize (single-use)", async function () {
       await pool.stakeIntoMining();
-    });
+      await finalizeCycle();
 
-    it("should push pending deposits into mining", async function () {
-      const bobAmt = parseE(1_000_000);
-      await token.connect(bob).approve(await pool.getAddress(), bobAmt);
-      await pool.connect(bob).deposit(bobAmt);
-
-      expect(await pool.pendingDeposits()).to.equal(bobAmt);
-      expect(await mining.stakedAmount(await pool.getAddress())).to.equal(TIER1);
-
-      // Top up
-      await pool.connect(bob).topUpStake();
-
-      expect(await pool.pendingDeposits()).to.equal(0);
-      expect(await mining.stakedAmount(await pool.getAddress())).to.equal(TIER1 + bobAmt);
-    });
-
-    it("should reject when no pending deposits", async function () {
-      await expect(pool.topUpStake()).to.be.revertedWith("No pending deposits");
-    });
-
-    it("should reject when pool not active", async function () {
-      // Go to Idle
-      await pool.requestUnstake();
-      await mining.setEpoch(2);
-      await pool.executeUnstake();
-      await ethers.provider.send("evm_increaseTime", [86401]);
-      await ethers.provider.send("evm_mine");
-      await pool.finalizeWithdraw();
-
-      await expect(pool.topUpStake()).to.be.revertedWith("Pool not active");
-    });
-
-    it("should correctly share rewards between staked and pending depositors", async function () {
-      // Bob deposits while Active (pending)
-      const bobAmt = parseE(25_000_000);
-      await token.connect(bob).approve(await pool.getAddress(), bobAmt);
-      await pool.connect(bob).deposit(bobAmt);
-
-      // Fund rewards and trigger claim (Bob's tokens aren't in mining yet,
-      // but he gets fair-dilution reward share)
-      await token.mint(owner.address, parseE(1000));
-      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
-      await mining.fundEpochReward(1, parseE(1000));
-      await mining.setCredits(1, await pool.getAddress(), 100);
-
-      await pool.triggerClaim([1n]);
-
-      const aliceReward = await pool.earned(alice.address);
-      const bobReward = await pool.earned(bob.address);
-
-      // Alice: 25M, Bob: 25M → 50/50 split of net rewards
-      // Net = 1000 - 2% protocol - 5% operator = 931
-      const aliceNum = Number(ethers.formatEther(aliceReward));
-      const bobNum = Number(ethers.formatEther(bobReward));
-
-      expect(aliceNum).to.be.closeTo(465.5, 1);
-      expect(bobNum).to.be.closeTo(465.5, 1);
+      // Pool is Finalized, not Idle — can't re-stake
+      expect(await pool.poolState()).to.equal(3); // Finalized
+      await expect(pool.stakeIntoMining()).to.be.revertedWith("Pool not idle");
     });
   });
 
@@ -238,14 +201,14 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.stakeIntoMining();
     });
 
-    it("should complete the full lifecycle", async function () {
+    it("should complete the full lifecycle to Finalized", async function () {
       // State: Active
       expect(await pool.poolState()).to.equal(1);
 
       // Request unstake (permissionless)
       await pool.connect(bob).requestUnstake();
-      expect(await pool.poolState()).to.equal(1); // still Active (waiting for epoch)
-      expect(await pool.unstakeRequestEpoch()).to.equal(1n); // requested at epoch 1
+      expect(await pool.poolState()).to.equal(1); // still Active
+      expect(await pool.unstakeRequestEpoch()).to.equal(1n);
 
       // Can't execute before epoch ends
       await expect(pool.connect(bob).executeUnstake()).to.be.revertedWith("Epoch not ended");
@@ -257,20 +220,21 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.connect(bob).executeUnstake();
       expect(await pool.poolState()).to.equal(2); // Unstaking
 
-      // Fast-forward past cooldown (1 day)
+      // Fast-forward past cooldown
       await ethers.provider.send("evm_increaseTime", [86401]);
       await ethers.provider.send("evm_mine");
 
-      // Finalize withdraw (permissionless)
+      // Finalize withdraw → Finalized (terminal)
       await pool.connect(bob).finalizeWithdraw();
-      expect(await pool.poolState()).to.equal(0); // Idle
+      expect(await pool.poolState()).to.equal(3); // Finalized
 
       // Tokens are back in the pool
       expect(await token.balanceOf(await pool.getAddress())).to.equal(TIER1);
 
       // Alice withdraws her principal
+      const aliceBefore = await token.balanceOf(alice.address);
       await pool.connect(alice).withdrawShare(TIER1);
-      expect(await token.balanceOf(alice.address)).to.equal(TIER3); // back to original
+      expect(await token.balanceOf(alice.address)).to.equal(aliceBefore + TIER1);
       expect(await pool.userDeposit(alice.address)).to.equal(0);
     });
 
@@ -278,7 +242,6 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.connect(bob).requestUnstake();
       await mining.setEpoch(2);
       await pool.connect(bob).executeUnstake();
-      // Pool is now Unstaking
       await expect(pool.connect(bob).requestUnstake()).to.be.revertedWith("Pool not active");
     });
 
@@ -303,9 +266,18 @@ describe("BotcoinPoolV2 Integration", function () {
         pool.connect(alice).withdrawShare(TIER1)
       ).to.be.revertedWith("Funds staked in mining");
     });
+
+    it("should reject withdrawShare when pool is Unstaking", async function () {
+      await pool.requestUnstake();
+      await mining.setEpoch(2);
+      await pool.executeUnstake();
+      await expect(
+        pool.connect(alice).withdrawShare(TIER1)
+      ).to.be.revertedWith("Funds staked in mining");
+    });
   });
 
-  describe("Reward Claims", function () {
+  describe("Per-Epoch Reward Claims", function () {
     beforeEach(async function () {
       await token.connect(alice).approve(await pool.getAddress(), TIER1);
       await pool.connect(alice).deposit(TIER1);
@@ -315,35 +287,43 @@ describe("BotcoinPoolV2 Integration", function () {
       await token.mint(owner.address, parseE(1000));
       await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
       await mining.fundEpochReward(1, parseE(1000));
-
-      // Set credits for pool
       await mining.setCredits(1, await pool.getAddress(), 100);
     });
 
-    it("should distribute regular rewards with fees", async function () {
+    it("should distribute regular rewards with fees per epoch", async function () {
       const protocolBefore = await token.balanceOf(protocol.address);
       const operatorBefore = await token.balanceOf(operator.address);
 
       // Trigger claim (permissionless)
       await pool.connect(bob).triggerClaim([1n]);
 
-      // Alice claims her reward
+      // Check per-epoch tracking
+      expect(await pool.claimedEpochCount()).to.equal(1);
+      expect(await pool.claimedEpochAt(0)).to.equal(1n);
+      expect(await pool.epochClaimed(1n)).to.be.true;
+
+      // Net reward: 1000 - 2% protocol - 5% operator = 931
+      const netReward = await pool.epochRewardNet(1n);
+      expect(netReward).to.equal(parseE(931));
+
+      // Alice's pending reward = 100% of net (sole depositor)
       const aliceReward = await pool.earned(alice.address);
-      expect(aliceReward).to.be.gt(0);
+      expect(aliceReward).to.equal(parseE(931));
 
+      // Alice claims
       await pool.connect(alice).claimReward();
-      expect(await token.balanceOf(alice.address)).to.be.gt(TIER3 - TIER1);
+      expect(await pool.earned(alice.address)).to.equal(0);
 
-      // Protocol got 2%
+      // Protocol got 2% of 1000
       const protocolGot = (await token.balanceOf(protocol.address)) - protocolBefore;
-      expect(protocolGot).to.equal(parseE(20)); // 2% of 1000
+      expect(protocolGot).to.equal(parseE(20));
 
-      // Operator got 5% of remaining 980
+      // Operator got 5% of 980
       const operatorGot = (await token.balanceOf(operator.address)) - operatorBefore;
-      expect(operatorGot).to.equal(parseE(49)); // 5% of 980
+      expect(operatorGot).to.equal(parseE(49));
     });
 
-    it("should distribute bonus rewards", async function () {
+    it("should distribute bonus rewards per epoch", async function () {
       // Setup bonus epoch
       await bonus.setBonusEpoch(1, true);
       await token.mint(owner.address, parseE(500));
@@ -353,8 +333,143 @@ describe("BotcoinPoolV2 Integration", function () {
 
       await pool.connect(bob).triggerBonusClaim([1n]);
 
+      expect(await pool.claimedBonusEpochCount()).to.equal(1);
+      expect(await pool.claimedBonusEpochAt(0)).to.equal(1n);
+      expect(await pool.bonusEpochClaimed(1n)).to.be.true;
+
       const reward = await pool.earned(alice.address);
       expect(reward).to.be.gt(0);
+    });
+
+    it("should skip already-claimed epochs gracefully", async function () {
+      await pool.triggerClaim([1n]);
+
+      // Calling again with the same epoch should skip (not revert)
+      await pool.triggerClaim([1n]);
+
+      // Still just one claimed epoch
+      expect(await pool.claimedEpochCount()).to.equal(1);
+    });
+
+    it("should track multiple epochs independently", async function () {
+      // Fund epoch 2
+      await token.mint(owner.address, parseE(2000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(2000));
+      await mining.fundEpochReward(2, parseE(2000));
+      await mining.setCredits(2, await pool.getAddress(), 100);
+
+      // Claim both epochs
+      await pool.triggerClaim([1n, 2n]);
+
+      expect(await pool.claimedEpochCount()).to.equal(2);
+
+      // Epoch 1 net: 931, Epoch 2 net: 1862
+      expect(await pool.epochRewardNet(1n)).to.equal(parseE(931));
+      expect(await pool.epochRewardNet(2n)).to.equal(parseE(1862));
+
+      // Alice gets total: 931 + 1862 = 2793
+      const pending = await pool.earned(alice.address);
+      expect(pending).to.equal(parseE(2793));
+    });
+
+    it("should reject triggerClaim when no active stake", async function () {
+      // Fresh pool with no deposits staked
+      const tx2 = await factory.createPool(operator.address, 500, TIER3);
+      const receipt2 = await tx2.wait();
+      const event2 = receipt2.logs.find(
+        (l) => l.fragment && l.fragment.name === "PoolCreated"
+      );
+      const pool2 = await ethers.getContractAt("BotcoinPoolV2", event2.args[0]);
+
+      await expect(pool2.triggerClaim([1n])).to.be.revertedWith("No active stake");
+    });
+
+    it("should reject claimReward when no rewards pending", async function () {
+      await expect(pool.connect(alice).claimReward()).to.be.revertedWith("No rewards");
+    });
+  });
+
+  describe("Reward Fairness — per-epoch vs. late-joiner", function () {
+    it("should distribute fairly: late depositors don't dilute early ones", async function () {
+      // Alice deposits 75M
+      await token.connect(alice).approve(await pool.getAddress(), parseE(75_000_000));
+      await pool.connect(alice).deposit(parseE(75_000_000));
+
+      // Bob deposits 25M
+      await token.connect(bob).approve(await pool.getAddress(), parseE(25_000_000));
+      await pool.connect(bob).deposit(parseE(25_000_000));
+
+      await pool.stakeIntoMining();
+
+      expect(await pool.totalStakeAtActive()).to.equal(parseE(100_000_000));
+
+      // Fund and claim epoch 1 (1000 BOTCOIN)
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+
+      await pool.triggerClaim([1n]);
+
+      // Net = 931. Alice: 75%, Bob: 25%
+      const aliceReward = await pool.earned(alice.address);
+      const bobReward = await pool.earned(bob.address);
+
+      const aliceNum = Number(ethers.formatEther(aliceReward));
+      const bobNum = Number(ethers.formatEther(bobReward));
+
+      expect(aliceNum).to.be.closeTo(698.25, 0.01);
+      expect(bobNum).to.be.closeTo(232.75, 0.01);
+    });
+
+    it("should not distort rewards after principal withdrawal in Finalized", async function () {
+      // Alice deposits 50M, Bob deposits 50M
+      await token.connect(alice).approve(await pool.getAddress(), parseE(50_000_000));
+      await pool.connect(alice).deposit(parseE(50_000_000));
+
+      await token.connect(bob).approve(await pool.getAddress(), parseE(50_000_000));
+      await pool.connect(bob).deposit(parseE(50_000_000));
+
+      await pool.stakeIntoMining();
+
+      // Fund epoch 1
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+
+      // Claim epoch 1
+      await pool.triggerClaim([1n]);
+
+      // Finalize
+      await finalizeCycle();
+
+      // Alice withdraws principal first (auto-claims rewards)
+      await pool.connect(alice).withdrawShare(parseE(50_000_000));
+
+      // Fund and claim epoch 2 (late claim — pool already Finalized)
+      await token.mint(owner.address, parseE(2000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(2000));
+      await mining.fundEpochReward(2, parseE(2000));
+      await mining.setCredits(2, await pool.getAddress(), 100);
+
+      await pool.triggerClaim([2n]);
+
+      // Bob should still get 50% of epoch 2 (not 100%)
+      // because rewardDeposit is frozen
+      const bobReward = await pool.earned(bob.address);
+      // Epoch 1 net: 931 → Bob's 50% = 465.5
+      // Epoch 2 net: 1862 → Bob's 50% = 931
+      // Total unclaimed for Bob: 465.5 + 931 = 1396.5
+      const bobNum = Number(ethers.formatEther(bobReward));
+      expect(bobNum).to.be.closeTo(1396.5, 0.01);
+
+      // Alice's rewardDeposit is still 50M — she can claim epoch 2 rewards
+      // even though her userDeposit is 0
+      const aliceReward = await pool.earned(alice.address);
+      // Alice already claimed epoch 1 via withdrawShare. Epoch 2: 50% = 931
+      const aliceNum = Number(ethers.formatEther(aliceReward));
+      expect(aliceNum).to.be.closeTo(931, 0.01);
     });
   });
 
@@ -364,12 +479,9 @@ describe("BotcoinPoolV2 Integration", function () {
       await pool.connect(alice).deposit(TIER1);
       await pool.stakeIntoMining();
 
-      // Whitelist submitReceipt selector
-      const submitReceiptSelector = "0x8b3e05f8"; // first 4 bytes of submitReceipt(...)
+      const submitReceiptSelector = "0x8b3e05f8";
       await pool.connect(owner).setAllowedOperatorSelector(submitReceiptSelector, true);
 
-      // The actual submitReceipt call would need proper params, but the mock accepts anything
-      // For this test, just verify the whitelist check works
       expect(await pool.allowedOperatorSelectors(submitReceiptSelector)).to.be.true;
     });
 
@@ -413,7 +525,6 @@ describe("BotcoinPoolV2 Integration", function () {
       const hash = ethers.keccak256(ethers.toUtf8Bytes("test"));
       const sig = await operator.signMessage(ethers.getBytes(hash));
 
-      // EIP-1271 expects ethSignedMessageHash
       const ethHash = ethers.hashMessage(ethers.getBytes(hash));
       const result = await pool.isValidSignature(ethHash, sig);
       expect(result).to.equal("0x1626ba7e");
@@ -448,17 +559,43 @@ describe("BotcoinPoolV2 Integration", function () {
       // Trigger claim
       await pool.triggerClaim([1n]);
 
-      // Alice should get 75% of net rewards, Bob 25%
       const aliceReward = await pool.earned(alice.address);
       const bobReward = await pool.earned(bob.address);
 
-      // Net rewards after 2% protocol + 5% operator = 93.1% of 1000 = 931
-      // Alice: 75% of 931 ≈ 698.25, Bob: 25% ≈ 232.75
+      // Net = 931. Alice: 75% ≈ 698.25, Bob: 25% ≈ 232.75
       const aliceNum = Number(ethers.formatEther(aliceReward));
       const bobNum = Number(ethers.formatEther(bobReward));
 
-      expect(aliceNum).to.be.closeTo(698.25, 1);
-      expect(bobNum).to.be.closeTo(232.75, 1);
+      expect(aliceNum).to.be.closeTo(698.25, 0.01);
+      expect(bobNum).to.be.closeTo(232.75, 0.01);
+    });
+
+    it("should handle auto-claim + withdraw in Finalized", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), parseE(50_000_000));
+      await pool.connect(alice).deposit(parseE(50_000_000));
+
+      await token.connect(bob).approve(await pool.getAddress(), parseE(50_000_000));
+      await pool.connect(bob).deposit(parseE(50_000_000));
+
+      await pool.stakeIntoMining();
+
+      // Fund and claim rewards
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+
+      await pool.triggerClaim([1n]);
+      await finalizeCycle();
+
+      // Alice uses withdrawShare (auto-claims)
+      const aliceBefore = await token.balanceOf(alice.address);
+      await pool.connect(alice).withdrawShare(parseE(50_000_000));
+      const aliceAfter = await token.balanceOf(alice.address);
+
+      // She gets principal (50M) + 50% of 931 = 50_000_465.5
+      const aliceGot = Number(ethers.formatEther(aliceAfter - aliceBefore));
+      expect(aliceGot).to.be.closeTo(50_000_465.5, 0.01);
     });
   });
 
@@ -471,21 +608,25 @@ describe("BotcoinPoolV2 Integration", function () {
       const info = await pool.getPoolInfo();
       expect(info[0]).to.equal(1); // Active state
       expect(info[1]).to.equal(TIER1); // stakedInMining
+      expect(info[3]).to.equal(TIER1); // activeStake = totalStakeAtActive
       expect(info[5]).to.be.true; // eligible (>= tier1)
-      expect(info[7]).to.equal(0); // no pending deposits
+      expect(info[7]).to.equal(0); // 0 epochs claimed
     });
 
-    it("should report pending deposits in poolInfo", async function () {
+    it("should track epoch claim count in poolInfo", async function () {
       await token.connect(alice).approve(await pool.getAddress(), TIER1);
       await pool.connect(alice).deposit(TIER1);
       await pool.stakeIntoMining();
 
-      const bobAmt = parseE(5_000_000);
-      await token.connect(bob).approve(await pool.getAddress(), bobAmt);
-      await pool.connect(bob).deposit(bobAmt);
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+
+      await pool.triggerClaim([1n]);
 
       const info = await pool.getPoolInfo();
-      expect(info[7]).to.equal(bobAmt); // pending deposits
+      expect(info[7]).to.equal(1); // 1 epoch claimed
     });
 
     it("should return correct user info", async function () {
@@ -496,22 +637,117 @@ describe("BotcoinPoolV2 Integration", function () {
       expect(info[0]).to.equal(TIER1); // depositAmt
       expect(info[2]).to.equal(10000n); // 100% share (only depositor)
     });
+
+    it("should reflect Finalized state (3)", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      const info = await pool.getPoolInfo();
+      expect(info[0]).to.equal(3); // Finalized
+    });
+
+    it("should provide epochClaimed and bonusEpochClaimed views", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+
+      expect(await pool.epochClaimed(1n)).to.be.false;
+      await pool.triggerClaim([1n]);
+      expect(await pool.epochClaimed(1n)).to.be.true;
+      expect(await pool.epochClaimed(2n)).to.be.false;
+    });
   });
 
   describe("Safety Guards", function () {
-    it("should reject triggerClaim when no stakers", async function () {
-      // Pool is Idle with 0 deposits
-      await expect(pool.triggerClaim([1n])).to.be.revertedWith("No stakers");
+    it("should reject triggerClaim when no active stake", async function () {
+      await expect(pool.triggerClaim([1n])).to.be.revertedWith("No active stake");
     });
 
-    it("should reject triggerBonusClaim when no stakers", async function () {
-      await expect(pool.triggerBonusClaim([1n])).to.be.revertedWith("No stakers");
+    it("should reject triggerBonusClaim when no active stake", async function () {
+      await expect(pool.triggerBonusClaim([1n])).to.be.revertedWith("No active stake");
     });
 
     it("should reject ETH transfers", async function () {
       await expect(
         owner.sendTransaction({ to: await pool.getAddress(), value: 1n })
       ).to.be.reverted;
+    });
+
+    it("should allow reward claiming even after Finalized", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      // Fund and claim a late epoch
+      await token.mint(owner.address, parseE(500));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(500));
+      await mining.fundEpochReward(1, parseE(500));
+      await mining.setCredits(1, await pool.getAddress(), 50);
+
+      await pool.triggerClaim([1n]);
+
+      const reward = await pool.earned(alice.address);
+      expect(reward).to.be.gt(0);
+
+      await pool.connect(alice).claimReward();
+      expect(await pool.earned(alice.address)).to.equal(0);
+    });
+  });
+
+  describe("Single-Use Invariant", function () {
+    it("should not allow re-staking after Finalize", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      expect(await pool.poolState()).to.equal(3); // Finalized
+      await expect(pool.stakeIntoMining()).to.be.revertedWith("Pool not idle");
+    });
+
+    it("should not allow deposits after Finalize", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+      await finalizeCycle();
+
+      await token.connect(bob).approve(await pool.getAddress(), parseE(1));
+      await expect(pool.connect(bob).deposit(parseE(1))).to.be.revertedWith("Deposits closed");
+    });
+
+    it("should allow full exit in Finalized (principal + rewards in one tx)", async function () {
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining();
+
+      // Fund reward
+      await token.mint(owner.address, parseE(1000));
+      await token.connect(owner).approve(await mining.getAddress(), parseE(1000));
+      await mining.fundEpochReward(1, parseE(1000));
+      await mining.setCredits(1, await pool.getAddress(), 100);
+      await pool.triggerClaim([1n]);
+
+      await finalizeCycle();
+
+      const aliceBefore = await token.balanceOf(alice.address);
+
+      // Single withdrawShare call gets principal + auto-claimed rewards
+      await pool.connect(alice).withdrawShare(TIER1);
+
+      const aliceAfter = await token.balanceOf(alice.address);
+      const received = aliceAfter - aliceBefore;
+
+      // Should be more than just principal (principal + 931 net reward)
+      expect(received).to.be.gt(TIER1);
+      expect(Number(ethers.formatEther(received))).to.be.closeTo(25_000_931, 1);
     });
   });
 });
