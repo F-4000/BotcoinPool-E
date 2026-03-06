@@ -40,7 +40,6 @@ export default function PoolPage() {
   const [newFeeBps, setNewFeeBps] = useState("");
   const [newOperator, setNewOperator] = useState("");
   const [newOwner, setNewOwner] = useState("");
-  const [opSelectorInput, setOpSelectorInput] = useState("");
 
   // ── Pool info (single call for state + mining data) ──
   const { data: poolInfo, refetch: refetchPoolInfo } = useReadContract({
@@ -116,7 +115,6 @@ export default function PoolPage() {
   const { writeContract: setFeeCall, data: setFeeTx, isPending: isSettingFee } = useWriteContract();
   const { writeContract: setOperatorCall, data: setOperatorTx, isPending: isSettingOperator } = useWriteContract();
   const { writeContract: transferOwnershipCall, data: transferOwnershipTx, isPending: isTransferring } = useWriteContract();
-  const { writeContract: setOperatorSelectorCall, data: setOperatorSelectorTx, isPending: isSettingOpSelector } = useWriteContract();
 
   const { isSuccess: approveOk } = useWaitForTransactionReceipt({ hash: approveTx });
   const { isSuccess: depositOk } = useWaitForTransactionReceipt({ hash: depositTx });
@@ -131,7 +129,6 @@ export default function PoolPage() {
   const { isSuccess: setFeeOk } = useWaitForTransactionReceipt({ hash: setFeeTx });
   const { isSuccess: setOperatorOk } = useWaitForTransactionReceipt({ hash: setOperatorTx });
   const { isSuccess: transferOwnershipOk } = useWaitForTransactionReceipt({ hash: transferOwnershipTx });
-  const { isSuccess: setOpSelectorOk } = useWaitForTransactionReceipt({ hash: setOperatorSelectorTx });
 
   // Refetch on success
   const refetchAll = useCallback(() => {
@@ -155,7 +152,6 @@ export default function PoolPage() {
   useEffect(() => { if (setFeeOk) refetchAll(); }, [setFeeOk, refetchAll]);
   useEffect(() => { if (setOperatorOk) refetchAll(); }, [setOperatorOk, refetchAll]);
   useEffect(() => { if (transferOwnershipOk) refetchAll(); }, [transferOwnershipOk, refetchAll]);
-  useEffect(() => { if (setOpSelectorOk) refetchAll(); }, [setOpSelectorOk, refetchAll]);
 
   // ── Derived values ──
   const poolStateNum = poolInfo?.[0] ?? 0;
@@ -265,13 +261,6 @@ export default function PoolPage() {
       transferOwnershipCall({ address, abi: poolAbi, functionName: "transferOwnership", args: [newOwner as `0x${string}`] });
     }
   }
-  function handleSetOperatorSelector(allowed: boolean) {
-    const sel = opSelectorInput.trim();
-    if (sel && sel.startsWith("0x") && sel.length === 10) {
-      setOperatorSelectorCall({ address, abi: poolAbi, functionName: "setAllowedOperatorSelector", args: [sel as `0x${string}`, allowed] });
-    }
-  }
-
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       {/* Navigation */}
@@ -649,30 +638,6 @@ export default function PoolPage() {
                 </button>
               </div>
               {setOperatorOk && <p className="text-xs glow-success mt-2">✓ Operator updated</p>}
-            </div>
-
-            <div className="border-t border-border" />
-
-            {/* Operator Selector Whitelist */}
-            <div>
-              <label className="text-xs text-muted block mb-1.5">Operator Selector Whitelist</label>
-              <p className="text-[11px] text-text-dim mb-2">4-byte function selector the operator can forward to MiningV2</p>
-              <div className="flex gap-3">
-                <input type="text" placeholder="0x12345678" value={opSelectorInput}
-                  onChange={(e) => setOpSelectorInput(e.target.value)}
-                  className="pool-input flex-1 px-3 py-2.5 text-sm font-tabular" />
-                <button onClick={() => handleSetOperatorSelector(true)}
-                  disabled={isSettingOpSelector || !opSelectorInput}
-                  className="btn-ghost px-4 py-2.5 text-sm font-medium text-success border-success/30 hover:bg-success/10 disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isSettingOpSelector ? "..." : "Allow"}
-                </button>
-                <button onClick={() => handleSetOperatorSelector(false)}
-                  disabled={isSettingOpSelector || !opSelectorInput}
-                  className="btn-ghost px-4 py-2.5 text-sm font-medium text-danger border-danger/30 hover:bg-danger/10 disabled:opacity-40 disabled:cursor-not-allowed">
-                  {isSettingOpSelector ? "..." : "Revoke"}
-                </button>
-              </div>
-              {setOpSelectorOk && <p className="text-xs glow-success mt-2">✓ Selector updated</p>}
             </div>
 
             <div className="border-t border-border" />

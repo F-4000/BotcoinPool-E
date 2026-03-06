@@ -79,7 +79,7 @@ All state transitions are **permissionless**. Pools are **single-use** — once 
 
 | Contract | Purpose |
 |---|---|
-| `BotcoinPoolV2.sol` | Core pool. Single-use lifecycle, per-epoch reward snapshots, EIP-1271 auth, operator selector whitelist. |
+| `BotcoinPoolV2.sol` | Core pool. Single-use lifecycle, per-epoch reward snapshots, EIP-1271 auth, hardcoded submitReceipt selector lock. |
 | `BotcoinPoolFactoryV2.sol` | Deploys pools with shared MiningV2/BonusEpoch refs and immutable protocol fee (1%). |
 
 ### Key Design Decisions
@@ -90,7 +90,7 @@ All state transitions are **permissionless**. Pools are **single-use** — once 
 - **Permissionless claiming** - `triggerClaim(epochIds)` and `triggerBonusClaim(epochIds)` callable by anyone
 - **Dual fee model** - Protocol fee (1%, immutable) + operator fee (max 10%, can only decrease)
 - **Immutable stake caps** - Set at creation, capped at 100M (Tier 3 max)
-- **Operator selector whitelist** - Owner whitelists 4-byte selectors the operator can forward to MiningV2
+- **Operator selector lock** - Only `submitReceipt` can be forwarded to MiningV2 (hardcoded, no config needed)
 - **EIP-1271** - Pool validates operator signatures for coordinator authentication
 
 ### Security
@@ -142,8 +142,7 @@ The frontend includes a guided **Bot Setup Wizard** on each pool's detail page t
 1. Creating/connecting an operator wallet (Bankr or any wallet)
 2. Choosing an LLM provider (OpenAI or Anthropic)
 3. Generating a `.env` config template (pool address pre-filled)
-4. Whitelisting the `submitReceipt` selector on-chain
-5. Downloading bot files (one-click zip or git sparse-checkout)
+4. Downloading bot files (one-click zip or git sparse-checkout)
 
 The pool detail page also shows a live **Bot Status** indicator that polls on-chain credits to detect whether the bot is running (Live / Active / Idle / Offline).
 

@@ -12,10 +12,10 @@ export const config = getDefaultConfig({
   ssr: true,
 });
 
-// Update this after deploying via the Factory
+// BotcoinPoolFactoryV3 on Base
 export const FACTORY_ADDRESS =
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`) ||
-  ("0x0000000000000000000000000000000000000000" as `0x${string}`);
+  ("0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712" as `0x${string}`);
 
 // Official BotcoinMiningV2 contract on Base
 export const MINING_ADDRESS =

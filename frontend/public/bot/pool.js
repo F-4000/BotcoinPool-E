@@ -1,13 +1,13 @@
 // scripts/operator/pool.js — Pool-as-Miner ABI encoding helpers
 //
-// Wraps coordinator calldata through the BotcoinPoolV2 contract so
+// Wraps coordinator calldata through the BotcoinPool contract so
 // that the pool contract (not the Bankr EOA) is the on-chain miner.
 
 import { ethers } from "ethers";
 import { config } from "./config.js";
 import { log } from "./logger.js";
 
-// ─── Pool V2 ABI (only the functions the bot needs) ──────────────
+// ─── Pool ABI (only the functions the bot needs) ─────────────────
 const POOL_ABI = [
   "function submitToMining(bytes data)",
   "function triggerClaim(uint64[] epochIds)",
@@ -15,7 +15,7 @@ const POOL_ABI = [
   "function stakeIntoMining()",
   "function requestUnstake()",
   "function executeUnstake()",
-  "function getPoolInfo() view returns (uint8 state, uint256 stakedInMining, uint256 totalDep, uint256 activeStake, uint64 currentEpoch, bool eligible, uint256 cooldownEnd, uint256 epochsClaimed)",
+  "function getPoolInfo() view returns (uint8 state, uint256 stakedInMining, uint256 totalDep, uint256 activeStake, uint64 currentEpoch, bool eligible, uint256 cooldownEnd, uint256 unclaimedRewards)",
 ];
 
 const iface = new ethers.Interface(POOL_ABI);
