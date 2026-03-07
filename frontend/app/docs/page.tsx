@@ -1,5 +1,9 @@
 import Link from "next/link";
 
+const FACTORY_ADDRESS =
+  process.env.NEXT_PUBLIC_FACTORY_ADDRESS ||
+  "0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712";
+
 export default function DocsPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -241,7 +245,7 @@ export default function DocsPage() {
       {/* Contract Addresses */}
       <Section title="Contract Addresses">
         <div className="space-y-2">
-          <AddrRow label="FactoryV3" addr="0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712" />
+          <AddrRow label="FactoryV3" addr={FACTORY_ADDRESS} />
           <AddrRow label="BotcoinMiningV2" addr="0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716" />
           <AddrRow label="BonusEpoch" addr="0xA185fE194A7F603b7287BC0abAeBA1b896a36Ba8" />
           <AddrRow label="BOTCOIN Token" addr="0xA601877977340862Ca67f816eb079958E5bd0BA3" />
@@ -256,7 +260,7 @@ export default function DocsPage() {
         <div className="flex items-center gap-4 text-xs">
           <a href="https://github.com/F-4000/BotcoinPool-E" target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">GitHub Source</a>
-          <a href="https://basescan.org/address/0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712#code" target="_blank" rel="noopener noreferrer"
+          <a href={`https://basescan.org/address/${FACTORY_ADDRESS}#code`} target="_blank" rel="noopener noreferrer"
             className="text-base-blue-light hover:underline">Verified on BaseScan</a>
         </div>
         <Link href="/" className="text-xs text-muted hover:text-base-blue-light transition-colors">

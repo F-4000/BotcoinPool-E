@@ -35,7 +35,7 @@ describe("BotcoinPoolV3 Integration", function () {
     );
 
     // Create a pool via factory
-    const tx = await factory.createPool(operator.address, 500, TIER3);
+    const tx = await factory.createPool(operator.address, 500, TIER3, 0);
     const receipt = await tx.wait();
     const event = receipt.logs.find(
       (l) => l.fragment && l.fragment.name === "PoolCreated"
@@ -75,19 +75,19 @@ describe("BotcoinPoolV3 Integration", function () {
 
     it("should reject maxStake > 100M", async function () {
       await expect(
-        factory.createPool(operator.address, 500, parseE(200_000_000))
+        factory.createPool(operator.address, 500, parseE(200_000_000), 0)
       ).to.be.revertedWith("Exceeds mining max");
     });
 
     it("should reject zero-address operator", async function () {
       await expect(
-        factory.createPool(ethers.ZeroAddress, 500, TIER3)
+        factory.createPool(ethers.ZeroAddress, 500, TIER3, 0)
       ).to.be.revertedWith("Zero operator");
     });
 
     it("should return correct pool count", async function () {
       expect(await factory.getPoolCount()).to.equal(1);
-      await factory.createPool(operator.address, 300, TIER1);
+      await factory.createPool(operator.address, 300, TIER1, 0);
       expect(await factory.getPoolCount()).to.equal(2);
     });
   });
@@ -448,7 +448,7 @@ describe("BotcoinPoolV3 Integration", function () {
     });
 
     it("should reject triggerClaim when no active stake", async function () {
-      const tx2 = await factory.createPool(operator.address, 500, TIER3);
+      const tx2 = await factory.createPool(operator.address, 500, TIER3, 0);
       const receipt2 = await tx2.wait();
       const event2 = receipt2.logs.find(
         (l) => l.fragment && l.fragment.name === "PoolCreated"
@@ -1008,6 +1008,90 @@ describe("BotcoinPoolV3 Integration", function () {
 
       expect(received).to.be.gt(TIER1);
       expect(Number(ethers.formatEther(received))).to.be.closeTo(25_000_931, 1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  MIN ACTIVE EPOCHS
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe("Min Active Epochs", function () {
+
+    it("should reject minActiveEpochs > 10", async function () {
+      await expect(
+        factory.createPool(operator.address, 500, TIER3, 11)
+      ).to.be.revertedWith("Min epochs too high");
+    });
+
+    it("should allow minActiveEpochs = 0 (immediate unstake)", async function () {
+      // Default pool already has minActiveEpochs=0
+      await token.connect(alice).approve(await pool.getAddress(), TIER1);
+      await pool.connect(alice).deposit(TIER1);
+      await pool.stakeIntoMining(); // epoch 1
+
+      // Should succeed immediately even in epoch 1
+      await pool.requestUnstake();
+    });
+
+    it("should allow minActiveEpochs = 10 (max)", async function () {
+      const tx = await factory.createPool(operator.address, 500, TIER3, 10);
+      const receipt = await tx.wait();
+      const ev = receipt.logs.find(l => l.fragment && l.fragment.name === "PoolCreated");
+      const p = await ethers.getContractAt("BotcoinPoolV3", ev.args[0]);
+
+      expect(await p.minActiveEpochs()).to.equal(10);
+    });
+
+    it("should block requestUnstake before min epochs reached", async function () {
+      const tx = await factory.createPool(operator.address, 500, TIER3, 3);
+      const receipt = await tx.wait();
+      const ev = receipt.logs.find(l => l.fragment && l.fragment.name === "PoolCreated");
+      const p = await ethers.getContractAt("BotcoinPoolV3", ev.args[0]);
+
+      await token.connect(alice).approve(await p.getAddress(), TIER1);
+      await p.connect(alice).deposit(TIER1);
+
+      await mining.setEpoch(5);
+      await p.stakeIntoMining(); // stakeEpoch = 5
+
+      // epoch 5: need 5+3=8, revert at 5
+      await expect(p.requestUnstake()).to.be.revertedWith("Min active epochs not reached");
+
+      // epoch 7: still too early (need >= 8)
+      await mining.setEpoch(7);
+      await expect(p.requestUnstake()).to.be.revertedWith("Min active epochs not reached");
+
+      // epoch 8: exactly stakeEpoch + minActiveEpochs → should pass
+      await mining.setEpoch(8);
+      await p.requestUnstake(); // should succeed
+    });
+
+    it("should expose minActiveEpochs and stakeEpoch in getPoolInfo", async function () {
+      const tx = await factory.createPool(operator.address, 500, TIER3, 5);
+      const receipt = await tx.wait();
+      const ev = receipt.logs.find(l => l.fragment && l.fragment.name === "PoolCreated");
+      const p = await ethers.getContractAt("BotcoinPoolV3", ev.args[0]);
+
+      let info = await p.getPoolInfo();
+      expect(info[8]).to.equal(5);  // minEpochs
+      expect(info[9]).to.equal(0);  // stakedAtEpoch (not staked yet)
+
+      await token.connect(alice).approve(await p.getAddress(), TIER1);
+      await p.connect(alice).deposit(TIER1);
+
+      await mining.setEpoch(3);
+      await p.stakeIntoMining();
+
+      info = await p.getPoolInfo();
+      expect(info[8]).to.equal(5);  // minEpochs (immutable)
+      expect(info[9]).to.equal(3);  // stakedAtEpoch = 3
+    });
+
+    it("should include minActiveEpochs in PoolCreated event", async function () {
+      const tx = await factory.createPool(operator.address, 500, TIER3, 7);
+      const receipt = await tx.wait();
+      const ev = receipt.logs.find(l => l.fragment && l.fragment.name === "PoolCreated");
+      expect(ev.args.minActiveEpochs).to.equal(7);
     });
   });
 });

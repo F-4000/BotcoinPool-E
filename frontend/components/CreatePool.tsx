@@ -21,6 +21,7 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
   }, [userAddress, operatorAddr]);
   const [feeBps, setFeeBps] = useState("50"); // 0.5% default
   const [maxStakeM, setMaxStakeM] = useState("100"); // 100M default
+  const [minEpochs, setMinEpochs] = useState("0"); // 0 = no lock
 
   const { writeContract, data: txHash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -34,17 +35,19 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
 
   const capNum = Number(maxStakeM) || 0;
   const feeNum = Number(feeBps) || 0;
+  const epochNum = Number(minEpochs) || 0;
   const overCap = capNum > 100;
   const overFee = feeNum > 1000;
+  const overEpochs = epochNum > 10;
 
   function handleCreate() {
-    if (!operatorAddr || overCap || overFee) return;
+    if (!operatorAddr || overCap || overFee || overEpochs) return;
     const cap = maxStakeM ? parseEther((capNum * 1_000_000).toString()) : 0n;
     writeContract({
       address: FACTORY_ADDRESS,
       abi: factoryAbi,
       functionName: "createPool",
-      args: [operatorAddr as `0x${string}`, BigInt(feeBps), cap],
+      args: [operatorAddr as `0x${string}`, BigInt(feeBps), cap, BigInt(epochNum)],
     });
   }
 
@@ -86,7 +89,7 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
     <div className="gradient-border p-5 space-y-4">
       <h3 className="text-sm font-semibold text-text">Create New Pool</h3>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <div>
           <label className="text-xs text-muted block mb-1.5">Operator Address</label>
           <input
@@ -137,6 +140,25 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
             {" · immutable after creation"}
           </p>
         </div>
+        <div>
+          <label className="text-xs text-muted block mb-1.5">Min Lock (epochs)</label>
+          <input
+            type="number"
+            min="0"
+            max="10"
+            placeholder="0"
+            value={minEpochs}
+            onChange={(e) => {
+              const v = Math.min(10, Math.max(0, Number(e.target.value)));
+              setMinEpochs(e.target.value === "" ? "" : String(v));
+            }}
+            className="pool-input w-full px-3 py-2.5 text-sm"
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            {epochNum === 0 ? "No lock" : `${epochNum} epoch${epochNum !== 1 ? "s" : ""}`}
+            {" · immutable · max 10"}
+          </p>
+        </div>
       </div>
 
       {error && (
@@ -148,7 +170,7 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
       <div className="flex items-center gap-3">
         <button
           onClick={handleCreate}
-          disabled={isPending || isConfirming || !operatorAddr || overCap || overFee}
+          disabled={isPending || isConfirming || !operatorAddr || overCap || overFee || overEpochs}
           className="btn-primary px-5 py-2.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isPending ? "Confirm in Wallet..." : isConfirming ? "Deploying..." : "Deploy Pool"}

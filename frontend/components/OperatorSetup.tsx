@@ -189,10 +189,10 @@ export default function OperatorSetup({ poolAddress, operatorAddress }: Operator
   const GIT_REPO = "https://github.com/F-4000/BotcoinPool-E.git";
   const gitCommands = `git clone --no-checkout --depth 1 --filter=blob:none ${GIT_REPO} botcoinpool-bot
 cd botcoinpool-bot
-git sparse-checkout set scripts/operator
+git sparse-checkout set frontend/public/bot
 git checkout
-mv scripts/operator/* .
-rm -rf scripts .git`;
+mv frontend/public/bot/* .
+rm -rf frontend .git`;
 
   function handleCopyGit() {
     navigator.clipboard.writeText(gitCommands);

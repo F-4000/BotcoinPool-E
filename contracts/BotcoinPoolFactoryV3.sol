@@ -23,7 +23,8 @@ contract BotcoinPoolFactoryV3 {
         address indexed pool,
         address indexed operator,
         uint256 feeBps,
-        uint256 maxStake
+        uint256 maxStake,
+        uint64  minActiveEpochs
     );
 
     // ── Constructor ──────────────────────────────────────────────────
@@ -53,10 +54,12 @@ contract BotcoinPoolFactoryV3 {
     /// @param _operator  Solver/signing EOA for this pool
     /// @param _feeBps    Operator fee (≤ 10 %)
     /// @param _maxStake  Pool cap (0 = no pool-level cap, still capped at 100M)
+    /// @param _minActiveEpochs  Min epochs before unstake allowed (0–10)
     function createPool(
         address _operator,
         uint256 _feeBps,
-        uint256 _maxStake
+        uint256 _maxStake,
+        uint64  _minActiveEpochs
     ) external returns (address) {
         uint256 miningMax = 100_000_000 * 1e18;
         require(_maxStake == 0 || _maxStake <= miningMax, "Exceeds mining max");
@@ -69,7 +72,8 @@ contract BotcoinPoolFactoryV3 {
             _feeBps,
             protocolFeeRecipient,
             protocolFeeBps,
-            _maxStake
+            _maxStake,
+            _minActiveEpochs
         );
 
         pool.transferOwnership(msg.sender);
@@ -78,7 +82,7 @@ contract BotcoinPoolFactoryV3 {
         allPools.push(poolAddr);
         isPool[poolAddr] = true;
 
-        emit PoolCreated(poolAddr, _operator, _feeBps, _maxStake);
+        emit PoolCreated(poolAddr, _operator, _feeBps, _maxStake, _minActiveEpochs);
         return poolAddr;
     }
 

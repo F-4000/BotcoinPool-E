@@ -15,7 +15,7 @@ const POOL_ABI = [
   "function stakeIntoMining()",
   "function requestUnstake()",
   "function executeUnstake()",
-  "function getPoolInfo() view returns (uint8 state, uint256 stakedInMining, uint256 totalDep, uint256 activeStake, uint64 currentEpoch, bool eligible, uint256 cooldownEnd, uint256 unclaimedRewards)",
+  "function getPoolInfo() view returns (uint8 state, uint256 stakedInMining, uint256 totalDep, uint256 activeStake, uint64 currentEpoch, bool eligible, uint256 cooldownEnd, uint256 unclaimedRewards, uint64 minEpochs, uint64 stakedAtEpoch)",
 ];
 
 const iface = new ethers.Interface(POOL_ABI);

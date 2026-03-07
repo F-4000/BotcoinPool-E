@@ -1,10 +1,11 @@
-// ── BotcoinPoolFactoryV2 ABI ──────────────────────────────────────────
+// ── BotcoinPoolFactoryV3 ABI ──────────────────────────────────────────
 export const factoryAbi = [
   {
     inputs: [
       { internalType: "address", name: "_operator", type: "address" },
       { internalType: "uint256", name: "_feeBps", type: "uint256" },
       { internalType: "uint256", name: "_maxStake", type: "uint256" },
+      { internalType: "uint64", name: "_minActiveEpochs", type: "uint64" },
     ],
     name: "createPool",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -48,7 +49,7 @@ export const factoryAbi = [
   },
 ] as const;
 
-// ── BotcoinPoolV2 ABI ────────────────────────────────────────────────
+// ── BotcoinPoolV3 ABI ────────────────────────────────────────────────
 export const poolAbi = [
   // -- Deposit / Withdraw --
   {
@@ -140,6 +141,8 @@ export const poolAbi = [
       { internalType: "bool", name: "eligible", type: "bool" },
       { internalType: "uint256", name: "cooldownEnd", type: "uint256" },
       { internalType: "uint256", name: "unclaimedRewards", type: "uint256" },
+      { internalType: "uint64", name: "minEpochs", type: "uint64" },
+      { internalType: "uint64", name: "stakedAtEpoch", type: "uint64" },
     ],
     stateMutability: "view",
     type: "function",

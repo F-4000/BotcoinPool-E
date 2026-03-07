@@ -48,6 +48,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
   const stakedInMining = poolInfo?.[1] ?? 0n;
   const totalDep = poolInfo?.[2] ?? 0n;
   const eligible = poolInfo?.[5] ?? false;
+  const minActiveEpochs = poolInfo?.[8] ?? 0n;
 
   const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : undefined;
   const totalStake = totalDep;
@@ -186,6 +187,14 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
                 <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Pool Cap</p>
                 <p className="text-text-dim font-semibold font-tabular">
                   {fmtToken(totalStake)} / {fmtToken(maxStake)}
+                </p>
+              </div>
+            )}
+            {Number(minActiveEpochs) > 0 && (
+              <div>
+                <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Lock</p>
+                <p className="text-text font-semibold font-tabular">
+                  {Number(minActiveEpochs)} epoch{Number(minActiveEpochs) !== 1 ? "s" : ""}
                 </p>
               </div>
             )}

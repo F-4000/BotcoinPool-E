@@ -81,7 +81,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     if (!poolInfoResults) return [...pools];
 
     const withStake = pools.map((addr, i) => {
-      const result = poolInfoResults[i]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint, bigint] | undefined;
+      const result = poolInfoResults[i]?.result as readonly [number, bigint, bigint, bigint, bigint, boolean, bigint, bigint, bigint, bigint] | undefined;
       const deposits = result?.[2] ?? 0n;
       return { addr, total: deposits };
     });

@@ -71,10 +71,12 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
     address public immutable protocolFeeRecipient;
     uint256 public immutable protocolFeeBps;
     uint256 public immutable maxStake; // 0 = unlimited (capped at 100M)
+    uint64  public immutable minActiveEpochs; // min epochs before unstake allowed (0–10)
 
     uint256 public constant MAX_FEE_BPS = 1000;          // 10 %
     uint256 public constant MAX_PROTOCOL_FEE_BPS = 500;   // 5 %
     uint256 public constant MINING_MAX_STAKE = 100_000_000 * 1e18;
+    uint64  public constant MAX_MIN_ACTIVE_EPOCHS = 10;
 
     bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
 
@@ -119,6 +121,7 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
 
     // Epoch-boundary unstake gating
     uint64 public unstakeRequestEpoch; // 0 = no pending request
+    uint64 public stakeEpoch;          // epoch when stakeIntoMining() was called
 
     // ── Events ───────────────────────────────────────────────────────
     event Deposited(address indexed user, uint256 amount);
@@ -143,13 +146,15 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
         uint256 _feeBps,
         address _protocolFeeRecipient,
         uint256 _protocolFeeBps,
-        uint256 _maxStake
+        uint256 _maxStake,
+        uint64  _minActiveEpochs
     ) Ownable(msg.sender) {
         require(_feeBps <= MAX_FEE_BPS, "Fee too high");
         require(_protocolFeeBps <= MAX_PROTOCOL_FEE_BPS, "Protocol fee too high");
         require(_operator != address(0), "Zero operator");
         require(_protocolFeeRecipient != address(0), "Zero fee recipient");
         require(_maxStake <= MINING_MAX_STAKE, "Exceeds Tier 3");
+        require(_minActiveEpochs <= MAX_MIN_ACTIVE_EPOCHS, "Min epochs too high");
 
         stakingToken  = IERC20(_stakingToken);
         mining        = IMiningV3(_mining);
@@ -159,6 +164,7 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
         protocolFeeRecipient = _protocolFeeRecipient;
         protocolFeeBps       = _protocolFeeBps;
         maxStake      = _maxStake;
+        minActiveEpochs = _minActiveEpochs;
         poolState     = PoolState.Idle;
     }
 
@@ -212,6 +218,7 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
         require(toStake >= mining.tier1Balance(), "Below tier 1 minimum");
 
         totalStakeAtActive = toStake;
+        stakeEpoch = mining.currentEpoch();
 
         stakingToken.forceApprove(address(mining), toStake);
         mining.stake(toStake);
@@ -233,11 +240,16 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
 
     /// @notice Request an unstake. Permissionless — anyone can call.
     ///         Queued for the current epoch; execution requires the
-    ///         epoch to have ended.
+    ///         epoch to have ended. Blocked until minActiveEpochs have
+    ///         passed since staking.
     function requestUnstake() external nonReentrant {
         require(poolState == PoolState.Active, "Pool not active");
         require(unstakeRequestEpoch == 0, "Unstake already requested");
-        unstakeRequestEpoch = mining.currentEpoch();
+
+        uint64 current = mining.currentEpoch();
+        require(current >= stakeEpoch + minActiveEpochs, "Min active epochs not reached");
+
+        unstakeRequestEpoch = current;
         emit UnstakeRequested(unstakeRequestEpoch);
     }
 
@@ -582,7 +594,9 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
         uint64  currentEpoch,
         bool    eligible,
         uint256 cooldownEnd,
-        uint256 unclaimedRewards
+        uint256 unclaimedRewards,
+        uint64  minEpochs,
+        uint64  stakedAtEpoch
     ) {
         state            = poolState;
         stakedInMining   = mining.stakedAmount(address(this));
@@ -592,6 +606,8 @@ contract BotcoinPoolV3 is Ownable, ReentrancyGuard, IERC1271 {
         eligible         = mining.isEligible(address(this));
         cooldownEnd      = mining.withdrawableAt(address(this));
         unclaimedRewards = totalUnclaimedRewards;
+        minEpochs        = minActiveEpochs;
+        stakedAtEpoch    = stakeEpoch;
     }
 
     // ── Internal helpers ─────────────────────────────────────────────

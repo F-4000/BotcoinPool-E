@@ -160,6 +160,8 @@ export default function PoolPage() {
   const totalDep = poolInfo?.[2] ?? 0n;
   const eligible = poolInfo?.[5] ?? false;
   const cooldownEnd = poolInfo?.[6] ?? 0n;
+  const minActiveEpochs = poolInfo?.[8] ?? 0n;
+  const stakedAtEpoch = poolInfo?.[9] ?? 0n;
 
   const userDeposit = userInfo?.[0] ?? 0n;
   const userReward = userInfo?.[1] ?? 0n;
@@ -305,6 +307,21 @@ export default function PoolPage() {
             <span className="text-muted text-xs">Pool Cap</span>
             <p className="text-text font-semibold mt-0.5">{maxStake && maxStake > 0n ? fmtToken(maxStake) : "No cap"}</p>
           </div>
+          {Number(minActiveEpochs) > 0 && (
+            <div>
+              <span className="text-muted text-xs">Lock Period</span>
+              <p className="text-text font-semibold mt-0.5">
+                {Number(minActiveEpochs)} epoch{Number(minActiveEpochs) !== 1 ? "s" : ""}
+                {poolStateName === "Active" && epochNum !== undefined && Number(stakedAtEpoch) > 0 && (
+                  <span className="text-muted text-xs font-normal ml-1">
+                    {epochNum >= Number(stakedAtEpoch) + Number(minActiveEpochs)
+                      ? "(unlocked)"
+                      : `(${Number(stakedAtEpoch) + Number(minActiveEpochs) - epochNum} left)`}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-5 gap-4">
