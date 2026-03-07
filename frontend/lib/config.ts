@@ -15,7 +15,7 @@ export const config = getDefaultConfig({
 // BotcoinPoolFactoryV3 on Base
 export const FACTORY_ADDRESS =
   (process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`) ||
-  ("0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712" as `0x${string}`);
+  ("0x1C3aC690656c1573b1BB20446d5793F4d41967Ee" as `0x${string}`);
 
 // Official BotcoinMiningV2 contract on Base
 export const MINING_ADDRESS =

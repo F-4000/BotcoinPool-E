@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const FACTORY_ADDRESS =
   process.env.NEXT_PUBLIC_FACTORY_ADDRESS ||
-  "0x4fD02f203afc9F7f1823F4B3Fc5304e70A564712";
+  "0x1C3aC690656c1573b1BB20446d5793F4d41967Ee";
 
 export default function DocsPage() {
   return (
