@@ -1,0 +1,57 @@
+# Botcoin Pool
+
+> Trustless, permissionless mining pool for BOTCOIN on Base.
+
+Botcoin Pool lets anyone stake BOTCOIN tokens into shared mining pools on Base (Ethereum L2). Pools earn rewards by solving AI challenges on-chain through an operator bot. All reward distribution uses a MasterChef-style accumulator for O(1) gas claims.
+
+## Key Facts
+
+- Token: BOTCOIN (0xA601877977340862Ca67f816eb079958E5bd0BA3) on Base
+- Factory contract: 0x1C3aC690656c1573b1BB20446d5793F4d41967Ee on Base
+- Mining contract: 0xcF5F2D541EEb0fb4cA35F1973DE5f2B02dfC3716 (BotcoinMiningV2)
+- All lifecycle actions (stake, unstake, finalize, claim) are permissionless
+- Operator fee: max 10%, can only decrease, never increase
+- Protocol fee: 1% (immutable)
+- Pool cap: set at creation, immutable
+- Lock period (minActiveEpochs): 0-10 epochs, set at creation, immutable
+
+## How It Works
+
+1. A pool creator deploys a pool via the factory, setting operator, fee, cap, and lock period
+2. Users deposit BOTCOIN into the pool while it is Idle
+3. Anyone can call stakeIntoMining() to push deposits into the mining contract
+4. The operator bot solves AI challenges and submits proofs through the pool (EIP-1271)
+5. Anyone can call triggerClaim() to distribute mining rewards to all depositors
+6. Anyone can call requestUnstake() and executeUnstake() to begin withdrawal
+7. After cooldown, anyone calls finalizeWithdraw() to return principal to the pool
+8. Users call withdrawShare() to get back principal plus accumulated rewards
+
+## Pool States
+
+- Idle: accepting deposits, not yet staked
+- Active: staked in mining, earning credits
+- Unstaking: cooldown period after unstake
+- Finalized: terminal state, users withdraw principal and rewards
+
+## Security Model
+
+- Contracts are non-upgradeable
+- Owner can only: change operator, decrease fee, rescue surplus tokens
+- Operator can only: submit mining receipts (hardcoded selector)
+- No role can drain deposits or accumulated rewards
+- ReentrancyGuard on all state-changing functions
+- Post-condition checks on all mining lifecycle calls
+
+## Links
+
+- Website: https://botcoinpool.com
+- GitHub: https://github.com/F-4000/BotcoinPool-E
+- Factory on BaseScan: https://basescan.org/address/0x1C3aC690656c1573b1BB20446d5793F4d41967Ee
+- BOTCOIN token: https://basescan.org/token/0xA601877977340862Ca67f816eb079958E5bd0BA3
+
+## Pages
+
+- / : Pool list, mining dashboard, create new pools
+- /scoreboard : Live solver activity, credits, and reward shares
+- /docs : Full documentation on contracts, lifecycle, and bot setup
+- /pool/[address] : Individual pool details, deposit, withdraw, claim

@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { formatUnits } from "viem";
 import { factoryAbi, poolAbi, miningAbi } from "@/lib/contracts";
 import { FACTORY_ADDRESS, MINING_ADDRESS } from "@/lib/config";
 import { shortAddr } from "@/lib/utils";
-
-const EPOCH_DURATION = 86_400;
+import EpochBar from "@/components/EpochBar";
 
 /** Compact number display */
 function compactNum(n: number): string {
@@ -32,18 +31,14 @@ export default function Scoreboard() {
     functionName: "getPools",
   });
 
-  // ── Mining: current epoch + genesis + totalCredits ──
-  const { data: miningBase } = useReadContracts({
-    contracts: [
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch" },
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
-    ],
+  // ── Mining: current epoch ──
+  const { data: currentEpoch } = useReadContract({
+    address: MINING_ADDRESS,
+    abi: miningAbi,
+    functionName: "currentEpoch",
     query: { refetchInterval: 15_000 },
   });
-
-  const currentEpoch = miningBase?.[0]?.result as bigint | undefined;
-  const genesisTs = miningBase?.[1]?.result as bigint | undefined;
-  const epochNum = currentEpoch !== undefined ? Number(currentEpoch) : undefined;
+  const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
   // ── Per-pool queries: credits, nextIndex, totalActiveStake, epochCommit ──
   const poolQueries = useMemo(() => {
@@ -84,8 +79,31 @@ export default function Scoreboard() {
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 
-  // Epoch is active if we have a valid epoch number
-  const epochActive = epochNum !== undefined && epochNum > 0;
+  // ── Credit delta tracking: detect who is solving right now ──
+  const prevCreditsRef = useRef<Map<string, bigint>>(new Map());
+  const solvingSetRef = useRef<Set<string>>(new Set());
+
+  const currentCredits = useMemo(() => {
+    const map = new Map<string, bigint>();
+    if (!pools || !poolResults) return map;
+    pools.forEach((addr, i) => {
+      const c = poolResults[i * 3]?.result as bigint | undefined;
+      if (c !== undefined) map.set(addr, c);
+    });
+    return map;
+  }, [pools, poolResults]);
+
+  useEffect(() => {
+    if (currentCredits.size === 0) return;
+    const prev = prevCreditsRef.current;
+    const solving = new Set<string>();
+    for (const [addr, credits] of currentCredits) {
+      const old = prev.get(addr);
+      if (old !== undefined && credits > old) solving.add(addr);
+    }
+    solvingSetRef.current = solving;
+    prevCreditsRef.current = new Map(currentCredits);
+  }, [currentCredits]);
 
   // ── Build sorted pool rows ──
   const rows = useMemo(() => {
@@ -101,6 +119,7 @@ export default function Scoreboard() {
         const totalNum = totalCredits ? Number(totalCredits) : 0;
         const sharePercent = totalNum > 0 ? (creditsNum / totalNum) * 100 : 0;
         const isActive = credits > 0n;
+        const isSolvingNow = solvingSetRef.current.has(addr);
 
         return {
           addr,
@@ -109,6 +128,7 @@ export default function Scoreboard() {
           activeStake,
           sharePercent,
           isActive,
+          isSolvingNow,
         };
       })
       .sort((a, b) => {
@@ -117,15 +137,6 @@ export default function Scoreboard() {
         return Number(b.credits - a.credits);
       });
   }, [pools, poolResults, epochNum, totalCredits]);
-
-  // ── Epoch timing ──
-  const epochProgress = useMemo(() => {
-    if (genesisTs === undefined || currentEpoch === undefined) return 0;
-    const now = Math.floor(Date.now() / 1000);
-    const epochStart = Number(genesisTs) + Number(currentEpoch) * EPOCH_DURATION;
-    const elapsed = now - epochStart;
-    return Math.min(100, Math.max(0, (elapsed / EPOCH_DURATION) * 100));
-  }, [genesisTs, currentEpoch]);
 
   // ── Loading / unset states ──
   if (FACTORY_ADDRESS === "0x0000000000000000000000000000000000000000") {
@@ -148,45 +159,10 @@ export default function Scoreboard() {
     );
   }
 
-  const activeSolvers = rows.filter((r) => r.isActive).length;
-
   return (
     <div className="space-y-4">
       {/* Epoch status bar */}
-      <div className="gradient-border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${epochActive ? "bg-success pulse-dot" : "bg-warn"}`} />
-            <span className="text-sm font-semibold text-text">
-              Epoch {epochNum}
-            </span>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${
-              epochActive ? "text-success bg-success/10" : "text-warn bg-warn/10"
-            }`}>
-              {epochActive ? "Active" : "Pending"}
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted">
-            <span>
-              <span className="text-text font-semibold">{activeSolvers}</span> active solver{activeSolvers !== 1 ? "s" : ""}
-            </span>
-            <span>
-              Total credits: <span className="text-text font-semibold font-tabular">{totalCredits ? compactNum(Number(totalCredits)) : "0"}</span>
-            </span>
-          </div>
-        </div>
-
-        {/* Epoch progress bar */}
-        <div className="h-1.5 rounded-full bg-border overflow-hidden">
-          <div
-            className="h-full rounded-full bg-linear-to-r from-base-blue to-indigo transition-all"
-            style={{ width: `${epochProgress}%` }}
-          />
-        </div>
-        <p className="text-[10px] text-muted mt-1 text-right font-tabular">
-          {epochProgress.toFixed(0)}% elapsed
-        </p>
-      </div>
+      <EpochBar />
 
       {/* Pool scoreboard */}
       <div>
@@ -228,9 +204,14 @@ export default function Scoreboard() {
                 </span>
 
                 {/* Status dot */}
-                <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                  row.isActive ? "bg-success pulse-dot" : "bg-muted"
-                }`} />
+                <div className="relative h-2 w-2 shrink-0">
+                  {row.isSolvingNow && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+                  )}
+                  <div className={`relative h-2 w-2 rounded-full ${
+                    row.isSolvingNow ? "bg-success" : row.isActive ? "bg-success" : "bg-muted"
+                  }`} />
+                </div>
 
                 {/* Pool address */}
                 <span className="text-sm font-semibold text-base-blue-light font-tabular w-28 shrink-0">
@@ -261,11 +242,13 @@ export default function Scoreboard() {
 
                 {/* Status badge */}
                 <span className={`ml-auto text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded w-20 text-center ${
-                  row.isActive
+                  row.isSolvingNow
                     ? "text-success bg-success/10"
-                    : "text-muted bg-white/5"
+                    : row.isActive
+                      ? "text-base-blue-light bg-base-blue/10"
+                      : "text-muted bg-white/5"
                 }`}>
-                  {row.isActive ? "Solving" : "Idle"}
+                  {row.isSolvingNow ? "Solving" : row.isActive ? "Active" : "Idle"}
                 </span>
               </div>
             ))
@@ -276,8 +259,15 @@ export default function Scoreboard() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-[10px] text-muted px-1">
         <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-1.5 rounded-full bg-success pulse-dot" />
-          <span>Solving: earned credits this epoch</span>
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success" />
+          </span>
+          <span>Solving: credits increasing right now</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-success" />
+          <span>Active: earned credits this epoch</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-muted" />

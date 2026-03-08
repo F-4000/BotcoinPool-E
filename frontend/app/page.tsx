@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import PoolList from "@/components/PoolList";
 import CreatePool from "@/components/CreatePool";
 import MiningStats from "@/components/MiningStats";
+import EpochBar from "@/components/EpochBar";
 import { FACTORY_ADDRESS } from "@/lib/config";
 
 export default function Home() {
@@ -51,6 +52,9 @@ export default function Home() {
 
       {/* Mining stats */}
       <MiningStats />
+
+      {/* Epoch status */}
+      <EpochBar />
 
       {/* Create pool form */}
       {showCreate && <CreatePool onCreated={handleCreated} onClose={handleCloseCreate} />}
