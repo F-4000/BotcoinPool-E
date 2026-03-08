@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useReadContract } from "wagmi";
+import { useReadContract, useAccount } from "wagmi";
 import { poolAbi } from "@/lib/contracts";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
@@ -32,6 +32,7 @@ interface PoolRowProps {
 
 export default function PoolRow({ address, credits, sharePercent, currentEpoch }: PoolRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const { address: walletAddr } = useAccount();
 
   const { data: poolInfo } = useReadContract({
     address,
@@ -64,6 +65,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
     : 0;
 
   const badge = STATE_BADGES[stateName] ?? STATE_BADGES.Idle;
+  const isOwner = !!(walletAddr && operator && walletAddr.toLowerCase() === operator.toLowerCase());
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -80,8 +82,13 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
         }`} />
 
         {/* Address */}
-        <span className="text-sm font-semibold text-base-blue-light font-tabular truncate">
+        <span className="text-sm font-semibold text-base-blue-light font-tabular truncate flex items-center gap-1.5">
           {shortAddr(address)}
+          {isOwner && (
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-base-blue-light bg-base-blue/15 px-1.5 py-0.5 rounded">
+              You
+            </span>
+          )}
         </span>
 
         {/* State + Bot status */}
