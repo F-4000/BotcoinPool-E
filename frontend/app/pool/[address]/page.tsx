@@ -372,10 +372,10 @@ export default function PoolPage() {
           {/* Request Unstake (queues for epoch end) */}
           <button
             onClick={handleRequestUnstake}
-            disabled={isRequesting || !isConnected || poolStateName !== "Active" || (unstakeRequestEpoch !== undefined && unstakeRequestEpoch > 0n)}
+            disabled={isRequesting || !isConnected || poolStateName !== "Active" || (unstakeRequestEpoch !== undefined && unstakeRequestEpoch > 0n) || (Number(minActiveEpochs) > 0 && epochNum !== undefined && epochNum < Number(stakedAtEpoch) + Number(minActiveEpochs))}
             className="btn-ghost py-3 text-sm font-medium text-warn border-warn/30 hover:bg-warn/10 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isRequesting ? "Requesting..." : unstakeRequestEpoch && unstakeRequestEpoch > 0n ? "Unstake Queued" : "Request Unstake"}
+            {isRequesting ? "Requesting..." : unstakeRequestEpoch && unstakeRequestEpoch > 0n ? "Unstake Queued" : Number(minActiveEpochs) > 0 && epochNum !== undefined && epochNum < Number(stakedAtEpoch) + Number(minActiveEpochs) ? `Locked (${Number(stakedAtEpoch) + Number(minActiveEpochs) - epochNum} epochs)` : "Request Unstake"}
           </button>
 
           {/* Execute Unstake (after epoch ends) */}
