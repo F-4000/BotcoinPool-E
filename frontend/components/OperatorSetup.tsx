@@ -133,7 +133,6 @@ function crc32(data: Uint8Array): number {
 function envTemplate(poolAddress: string, llmProvider: string): string {
   return [
     "# BotcoinPool Operator Bot",
-    `# Pool: ${poolAddress}`,
     "",
     "# ── Required ──",
     "",
