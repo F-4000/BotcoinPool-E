@@ -37,7 +37,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch }
     address,
     abi: poolAbi,
     functionName: "getPoolInfo",
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 25_000 },
   });
   const { data: feeBps } = useReadContract({ address, abi: poolAbi, functionName: "feeBps" });
   const { data: operator } = useReadContract({ address, abi: poolAbi, functionName: "operator" });

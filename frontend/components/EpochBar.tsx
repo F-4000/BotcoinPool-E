@@ -29,7 +29,7 @@ export default function EpochBar() {
       { address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch" },
       { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
     ],
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 25_000 },
   });
 
   const currentEpoch = miningBase?.[0]?.result as bigint | undefined;
@@ -49,7 +49,7 @@ export default function EpochBar() {
 
   const { data: creditResults } = useReadContracts({
     contracts: creditQueries,
-    query: { enabled: creditQueries.length > 0, refetchInterval: 10_000 },
+    query: { enabled: creditQueries.length > 0, refetchInterval: 25_000 },
   });
 
   // ── Total credits this epoch ──
@@ -58,7 +58,7 @@ export default function EpochBar() {
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 10_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 

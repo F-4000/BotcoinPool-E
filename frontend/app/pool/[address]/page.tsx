@@ -46,7 +46,7 @@ export default function PoolPage() {
     address,
     abi: poolAbi,
     functionName: "getPoolInfo",
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 25_000 },
   });
 
   const { data: feeBps } = useReadContract({ address, abi: poolAbi, functionName: "feeBps" });
@@ -56,7 +56,7 @@ export default function PoolPage() {
   const { data: maxStake } = useReadContract({ address, abi: poolAbi, functionName: "maxStake" });
   const { data: unstakeRequestEpoch, refetch: refetchRequestEpoch } = useReadContract({
     address, abi: poolAbi, functionName: "unstakeRequestEpoch",
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 25_000 },
   });
 
   // ── User info ──
@@ -91,14 +91,14 @@ export default function PoolPage() {
     abi: miningAbi,
     functionName: "credits",
     args: epochNum !== undefined ? [BigInt(epochNum), address] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 10_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
   const { data: totalCreditsData } = useReadContract({
     address: MINING_ADDRESS,
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 10_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
 
   // ── Writes ──

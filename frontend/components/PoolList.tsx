@@ -20,7 +20,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     address: MINING_ADDRESS,
     abi: miningAbi,
     functionName: "currentEpoch",
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 25_000 },
   });
   const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
@@ -49,7 +49,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
 
   const { data: miningResults } = useReadContracts({
     contracts: miningQueries,
-    query: { enabled: miningQueries.length > 0, refetchInterval: 10_000 },
+    query: { enabled: miningQueries.length > 0, refetchInterval: 25_000 },
   });
 
   // ── Total credits this epoch ──
@@ -58,7 +58,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 10_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 

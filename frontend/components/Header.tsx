@@ -30,7 +30,7 @@ export default function Header() {
   // Fetch ETH balance
   const { data: ethBalance } = useBalance({
     address,
-    query: { enabled: isConnected, refetchInterval: 15_000 },
+    query: { enabled: isConnected, refetchInterval: 25_000 },
   });
 
   // Fetch BOTCOIN balance
@@ -39,7 +39,7 @@ export default function Header() {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
-    query: { enabled: isConnected && !!address, refetchInterval: 15_000 },
+    query: { enabled: isConnected && !!address, refetchInterval: 25_000 },
   });
 
   useEffect(() => {

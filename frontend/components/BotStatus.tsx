@@ -35,7 +35,7 @@ export default function BotStatus({ poolAddress, currentEpoch, compact }: BotSta
     abi: miningAbi,
     functionName: "credits",
     args: epochNum !== undefined ? [BigInt(epochNum), poolAddress] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 10_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
 
   // Credits previous epoch (to detect "was active recently")
