@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther } from "viem";
-import { factoryAbi } from "@/lib/contracts";
-import { FACTORY_ADDRESS } from "@/lib/config";
+import { factoryAbi, miningAbi } from "@/lib/contracts";
+import { FACTORY_ADDRESS, MINING_ADDRESS } from "@/lib/config";
 
 interface CreatePoolProps {
   onCreated?: () => void;
@@ -39,6 +39,13 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
   const overCap = capNum > 100;
   const overFee = feeNum > 1000;
   const overEpochs = epochNum > 10;
+
+  const { data: currentEpoch } = useReadContract({
+    address: MINING_ADDRESS,
+    abi: miningAbi,
+    functionName: "currentEpoch",
+  });
+  const curEpoch = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
   function handleCreate() {
     if (!operatorAddr || overCap || overFee || overEpochs) return;
@@ -155,7 +162,11 @@ export default function CreatePool({ onCreated, onClose }: CreatePoolProps) {
             className="pool-input w-full px-3 py-2.5 text-sm"
           />
           <p className="mt-1 text-[11px] text-muted">
-            {epochNum === 0 ? "No lock" : `${epochNum} epoch${epochNum !== 1 ? "s" : ""}`}
+            {epochNum === 0
+              ? "No lock"
+              : curEpoch !== undefined
+                ? `Depositors locked for ${epochNum} epoch${epochNum !== 1 ? "s" : ""} after staking (until ~epoch ${curEpoch + epochNum + 1})`
+                : `${epochNum} epoch${epochNum !== 1 ? "s" : ""} after staking`}
             {" · immutable · max 10"}
           </p>
         </div>

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
-import { poolAbi, erc20Abi, miningAbi } from "@/lib/contracts";
-import { MINING_ADDRESS } from "@/lib/config";
+import { poolAbi, erc20Abi, miningAbi, bonusEpochAbi } from "@/lib/contracts";
+import { MINING_ADDRESS, BONUS_EPOCH_ADDRESS } from "@/lib/config";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 import BotStatus from "@/components/BotStatus";
@@ -14,6 +14,16 @@ import OperatorSetup from "@/components/OperatorSetup";
 // Pool states matching the Solidity enum
 const POOL_STATES = ["Idle", "Active", "Unstaking", "Finalized"] as const;
 type PoolStateName = (typeof POOL_STATES)[number];
+const EPOCH_DURATION = 86_400;
+
+function fmtCountdown(seconds: number): string {
+  if (seconds <= 0) return "0m";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
 
 const STATE_COLORS: Record<PoolStateName, string> = {
   Idle: "text-muted",
@@ -101,6 +111,38 @@ export default function PoolPage() {
     query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
   });
 
+  // Genesis timestamp + epoch reward (batched)
+  const prevEpoch = epochNum !== undefined && epochNum > 0 ? epochNum - 1 : undefined;
+  const { data: miningMeta } = useReadContracts({
+    contracts: [
+      { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
+      { address: MINING_ADDRESS, abi: miningAbi, functionName: "epochReward" },
+    ],
+    query: { refetchInterval: 25_000 },
+  });
+  const genesisTs = miningMeta?.[0]?.result as bigint | undefined;
+  const epochReward = miningMeta?.[1]?.result as bigint | undefined;
+
+  // Claim status for previous epoch (is it already claimed? is it a bonus epoch?)
+  const { data: claimStatus } = useReadContracts({
+    contracts: [
+      { address, abi: poolAbi, functionName: "epochClaimed", args: prevEpoch !== undefined ? [BigInt(prevEpoch)] : undefined },
+      { address, abi: poolAbi, functionName: "bonusEpochClaimed", args: prevEpoch !== undefined ? [BigInt(prevEpoch)] : undefined },
+      { address: BONUS_EPOCH_ADDRESS, abi: bonusEpochAbi, functionName: "isBonusEpoch", args: prevEpoch !== undefined ? [BigInt(prevEpoch)] : undefined },
+    ],
+    query: { enabled: prevEpoch !== undefined, refetchInterval: 25_000 },
+  });
+  const epochAlreadyClaimed = claimStatus?.[0]?.result as boolean | undefined;
+  const bonusAlreadyClaimed = claimStatus?.[1]?.result as boolean | undefined;
+  const isBonusEpoch = claimStatus?.[2]?.result as boolean | undefined;
+
+  // Ticking clock for countdown timers
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── Writes ──
   const { writeContract: approve, data: approveTx, isPending: isApproving } = useWriteContract();
   const { writeContract: depositCall, data: depositTx, isPending: isDepositing } = useWriteContract();
@@ -160,6 +202,7 @@ export default function PoolPage() {
   const totalDep = poolInfo?.[2] ?? 0n;
   const eligible = poolInfo?.[5] ?? false;
   const cooldownEnd = poolInfo?.[6] ?? 0n;
+  const unclaimedRewards = poolInfo?.[7] ?? 0n;
   const minActiveEpochs = poolInfo?.[8] ?? 0n;
   const stakedAtEpoch = poolInfo?.[9] ?? 0n;
 
@@ -209,6 +252,24 @@ export default function PoolPage() {
     if (stakedInMining >= 25_000_000n * 10n ** 18n) return 1;
     return 0;
   }, [stakedInMining]);
+
+  // Epoch countdown
+  const epochSecondsLeft = useMemo(() => {
+    if (genesisTs === undefined || epochNum === undefined) return 0;
+    const epochEnd = Number(genesisTs) + (epochNum + 1) * EPOCH_DURATION;
+    return Math.max(0, epochEnd - now);
+  }, [genesisTs, epochNum, now]);
+
+  // Lock countdown (seconds until lock expires)
+  const lockEpochs = Number(minActiveEpochs);
+  const stakedAt = Number(stakedAtEpoch);
+  const unlockEpoch = stakedAt > 0 && lockEpochs > 0 ? stakedAt + lockEpochs : 0;
+  const lockSecondsLeft = useMemo(() => {
+    if (genesisTs === undefined || unlockEpoch <= 0 || epochNum === undefined) return 0;
+    if (epochNum >= unlockEpoch + 1) return 0; // fully unlocked
+    const lockExpiresAt = Number(genesisTs) + (unlockEpoch + 1) * EPOCH_DURATION;
+    return Math.max(0, lockExpiresAt - now);
+  }, [genesisTs, unlockEpoch, epochNum, now]);
 
   // ── Handlers ──
   function handleApprove() {
@@ -314,9 +375,9 @@ export default function PoolPage() {
                 {Number(minActiveEpochs)} epoch{Number(minActiveEpochs) !== 1 ? "s" : ""}
                 {poolStateName === "Active" && epochNum !== undefined && Number(stakedAtEpoch) > 0 && (
                   <span className="text-muted text-xs font-normal ml-1">
-                    {epochNum >= Number(stakedAtEpoch) + Number(minActiveEpochs)
+                    {lockSecondsLeft <= 0
                       ? "(unlocked)"
-                      : `(${Number(stakedAtEpoch) + Number(minActiveEpochs) - epochNum} left)`}
+                      : `(${fmtCountdown(lockSecondsLeft)})`}
                   </span>
                 )}
               </p>
@@ -337,17 +398,36 @@ export default function PoolPage() {
             value={eligible ? "Yes" : "No"}
             accent={eligible}
           />
+          <StatBlock
+            label="Unclaimed Rewards"
+            value={fmtToken(unclaimedRewards)}
+            accent={unclaimedRewards > 0n}
+          />
+          {epochReward !== undefined && (
+            <StatBlock
+              label="Epoch Reward"
+              value={fmtToken(epochReward)}
+            />
+          )}
         </div>
 
-        {/* Epoch + Credits */}
+        {/* Epoch + Credits + Bot Status */}
         {epochNum !== undefined && (
-          <div className="mt-3 pt-3 border-t border-border flex items-center gap-6 text-xs text-muted">
-            <span>Epoch <span className="text-text font-tabular">{epochNum}</span></span>
-            <span>Credits <span className="text-text font-tabular">{poolCredits ? Number(poolCredits).toLocaleString() : "0"}</span></span>
-            <span>Reward Share <span className={`font-tabular ${creditShare > 0 ? "text-success font-semibold" : "text-muted"}`}>
-              {creditShare > 0 ? `${creditShare.toFixed(1)}%` : "-"}
-            </span></span>
-            <span className="ml-auto"><BotStatus poolAddress={address as `0x${string}`} currentEpoch={epochNum} /></span>
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6 text-xs text-muted">
+                <span>Epoch <span className="text-text font-tabular">{epochNum}</span>
+                  {epochSecondsLeft > 0 && (
+                    <span className="text-muted font-tabular ml-1">({fmtCountdown(epochSecondsLeft)})</span>
+                  )}
+                </span>
+                <span>Credits <span className="text-text font-tabular">{poolCredits ? Number(poolCredits).toLocaleString() : "0"}</span></span>
+                <span>Reward Share <span className={`font-tabular ${creditShare > 0 ? "text-success font-semibold" : "text-muted"}`}>
+                  {creditShare > 0 ? `${creditShare.toFixed(1)}%` : "-"}
+                </span></span>
+              </div>
+              <BotStatus poolAddress={address as `0x${string}`} currentEpoch={epochNum} />
+            </div>
           </div>
         )}
       </div>
@@ -594,13 +674,13 @@ export default function PoolPage() {
               <span className="text-success font-medium"> Fully trustless.</span>
             </p>
             <div className="flex gap-3">
-              <button onClick={handleTriggerClaim} disabled={isTriggering || !isConnected || epochNum === undefined || epochNum < 1}
+              <button onClick={handleTriggerClaim} disabled={isTriggering || !isConnected || epochNum === undefined || epochNum < 1 || epochAlreadyClaimed === true}
                 className="btn-ghost flex-1 py-3 text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed">
-                {isTriggering ? "Triggering..." : `Claim Epoch ${epochNum !== undefined && epochNum > 0 ? epochNum - 1 : "?"} →`}
+                {isTriggering ? "Triggering..." : epochAlreadyClaimed ? `Epoch ${prevEpoch} Claimed ✓` : `Claim Epoch ${prevEpoch ?? "?"} →`}
               </button>
-              <button onClick={handleTriggerBonusClaim} disabled={isTriggeringBonus || !isConnected || epochNum === undefined || epochNum < 1}
+              <button onClick={handleTriggerBonusClaim} disabled={isTriggeringBonus || !isConnected || epochNum === undefined || epochNum < 1 || isBonusEpoch !== true || bonusAlreadyClaimed === true}
                 className="btn-ghost flex-1 py-3 text-sm font-medium text-base-blue-light border-base-blue/30 hover:bg-base-blue/10 disabled:opacity-30 disabled:cursor-not-allowed">
-                {isTriggeringBonus ? "Triggering..." : `Bonus Epoch ${epochNum !== undefined && epochNum > 0 ? epochNum - 1 : "?"} →`}
+                {isTriggeringBonus ? "Triggering..." : bonusAlreadyClaimed ? `Bonus ${prevEpoch} Claimed ✓` : isBonusEpoch !== true ? `Not a Bonus Epoch` : `Bonus Epoch ${prevEpoch ?? "?"} →`}
               </button>
             </div>
             {triggerOk && <p className="mt-3 text-xs glow-success">✓ Regular rewards distributed</p>}
@@ -609,8 +689,8 @@ export default function PoolPage() {
         </div>
       </div>
 
-      {/* Operator Setup Guide — shown to pool owner */}
-      {isOwner && poolStateName !== "Unstaking" && (
+      {/* Operator Setup Guide — shown to pool owner when bot is not earning */}
+      {isOwner && poolStateName !== "Unstaking" && !(poolCredits && poolCredits > 0n) && (
         <OperatorSetup poolAddress={address} operatorAddress={operator as string | undefined} />
       )}
 

@@ -177,6 +177,7 @@ function envTemplate(poolAddress: string, llmProvider: string): string {
 
 export default function OperatorSetup({ poolAddress, operatorAddress }: OperatorSetupProps) {
   const [step, setStep] = useState(0);
+  const [path, setPath] = useState<"agent" | "standalone" | null>(null);
   const [llmProvider, setLlmProvider] = useState<"openai" | "anthropic">("openai");
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -184,8 +185,9 @@ export default function OperatorSetup({ poolAddress, operatorAddress }: Operator
   const [downloadError, setDownloadError] = useState("");
   const [dlMethod, setDlMethod] = useState<"zip" | "git">("zip");
   const [gitCopied, setGitCopied] = useState(false);
+  const [skillCopied, setSkillCopied] = useState<string | null>(null);
 
-  const totalSteps = 5;
+  const totalSteps = path === "agent" ? 2 : 5;
 
   function handleCopyTemplate() {
     navigator.clipboard.writeText(envTemplate(poolAddress, llmProvider));
@@ -217,6 +219,12 @@ rm -rf frontend .git`;
     navigator.clipboard.writeText(gitCommands);
     setGitCopied(true);
     setTimeout(() => setGitCopied(false), 2000);
+  }
+
+  function handleCopySkill(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setSkillCopied(label);
+    setTimeout(() => setSkillCopied(null), 2000);
   }
 
   if (collapsed) {
@@ -266,7 +274,7 @@ rm -rf frontend .git`;
         ))}
       </div>
 
-      {/* Step 0: What is this? Overview */}
+      {/* Step 0: Choose your path */}
       {step === 0 && (
         <div className="space-y-4">
           <div className="bg-danger/5 border border-danger/30 rounded-lg p-4">
@@ -275,48 +283,223 @@ rm -rf frontend .git`;
               <div>
                 <p className="text-sm font-bold text-danger">Your pool will not mine without this</p>
                 <p className="text-xs text-text-dim leading-relaxed mt-1">
-                  Botcoin pools earn rewards by solving AI challenges on-chain. This requires an <span className="text-text font-semibold">operator bot</span> — a program that runs 24/7, fetches challenges, solves them with an LLM (like GPT-4 or Claude), and submits proofs through your pool contract.
-                </p>
-                <p className="text-xs text-danger/80 font-medium mt-2">
-                  Without the bot running, your pool sits idle and earns zero credits — even if people deposit into it.
+                  Botcoin pools earn rewards by solving AI challenges on-chain. This requires a <span className="text-text font-semibold">mining bot</span> that runs 24/7, fetches challenges, solves them with an LLM, and submits proofs through your pool contract.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-black/20 rounded-lg p-4 space-y-3">
-            <p className="text-[11px] text-muted uppercase tracking-wide font-semibold mb-1">What you&apos;ll need</p>
-            <div className="flex items-start gap-3">
-              <span className="text-xs font-bold text-base-blue-light bg-base-blue/10 rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">1</span>
-              <div>
-                <p className="text-xs text-text font-medium">Bankr wallet</p>
-                <p className="text-[11px] text-muted">A custodial wallet that signs transactions for your bot. Free to create at <span className="text-base-blue-light">bankr.bot/terminal</span></p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="text-xs font-bold text-base-blue-light bg-base-blue/10 rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">2</span>
-              <div>
-                <p className="text-xs text-text font-medium">LLM API key</p>
-                <p className="text-[11px] text-muted">OpenAI or Anthropic — used to solve mining challenges</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="text-xs font-bold text-base-blue-light bg-base-blue/10 rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">3</span>
-              <div>
-                <p className="text-xs text-text font-medium">A machine that stays online</p>
-                <p className="text-[11px] text-muted">The bot runs as a Node.js script — any VPS, server, or always-on laptop works</p>
-              </div>
-            </div>
-          </div>
+          <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Choose how to run your miner</p>
 
-          <button onClick={() => setStep(1)} className="btn-primary w-full py-3 text-sm font-semibold">
-            I understand — let&apos;s set up the bot →
+          {/* Option A: AI Agent Skill */}
+          <button
+            onClick={() => { setPath("agent"); setStep(1); }}
+            className={`w-full text-left rounded-lg p-4 transition-all cursor-pointer border ${
+              "bg-success/5 border-success/30 hover:bg-success/10"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-lg mt-0.5">🤖</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-success">Use an AI Agent</p>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-success bg-success/10 px-1.5 py-0.5 rounded">Easiest</span>
+                </div>
+                <p className="text-xs text-text-dim mt-1 leading-relaxed">
+                  Install the BOTCOIN miner skill on your existing AI agent. Works with <span className="text-text font-medium">Bankr</span>, <span className="text-text font-medium">OpenClaw</span>, and <span className="text-text font-medium">ClawHub</span>. Your agent handles everything automatically.
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  Requires: a Bankr API key + an AI agent that supports skills
+                </p>
+              </div>
+              <svg className="w-4 h-4 text-success shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
+
+          {/* Option B: Standalone bot */}
+          <button
+            onClick={() => { setPath("standalone"); setStep(1); }}
+            className="w-full text-left rounded-lg p-4 transition-all cursor-pointer border bg-base-blue/5 border-base-blue/30 hover:bg-base-blue/10"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-lg mt-0.5">⚙️</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-base-blue-light">Run a Standalone Bot</p>
+                <p className="text-xs text-text-dim mt-1 leading-relaxed">
+                  Download a Node.js bot and run it yourself. Full control over the mining loop, LLM provider, and configuration.
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  Requires: Bankr API key + LLM API key (OpenAI/Anthropic) + a machine that stays online
+                </p>
+              </div>
+              <svg className="w-4 h-4 text-base-blue-light shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
           </button>
         </div>
       )}
 
+      {/* ═══ AI Agent Path ═══ */}
+
+      {/* Agent Step 1: Install the skill */}
+      {step === 1 && path === "agent" && (
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-text mb-1">Step 1: Install the BOTCOIN Miner Skill</h4>
+            <p className="text-xs text-text-dim leading-relaxed">
+              Tell your AI agent to install the mining skill. Pick the method that matches your agent platform.
+            </p>
+          </div>
+
+          {/* Bankr */}
+          <div className="bg-black/20 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm">🔥</span>
+              <p className="text-xs font-semibold text-text">Bankr Agent</p>
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-success bg-success/10 px-1.5 py-0.5 rounded">Recommended</span>
+            </div>
+            <p className="text-[11px] text-text-dim">
+              Open <a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline font-medium">bankr.bot/terminal</a> and tell your agent:
+            </p>
+            <div className="relative">
+              <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
+{`install the botcoin-miner skill from https://agentmoney.net/skill.md`}
+              </pre>
+              <button
+                onClick={() => handleCopySkill("install the botcoin-miner skill from https://agentmoney.net/skill.md", "bankr")}
+                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+              >
+                {skillCopied === "bankr" ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted">
+              Bankr handles the wallet, transactions, and on-chain execution. The skill teaches it how to mine BOTCOIN.
+            </p>
+          </div>
+
+          {/* OpenClaw / ClawHub */}
+          <div className="bg-black/20 rounded-lg p-4 space-y-3">
+            <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Other agent platforms</p>
+
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs text-text font-medium mb-1">OpenClaw (npx)</p>
+                <div className="relative">
+                  <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
+{`npx skills add botcoinmoney/botcoin-miner-skill`}
+                  </pre>
+                  <button
+                    onClick={() => handleCopySkill("npx skills add botcoinmoney/botcoin-miner-skill", "npx")}
+                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                  >
+                    {skillCopied === "npx" ? "Copied ✓" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-text font-medium mb-1">ClawHub</p>
+                <div className="relative">
+                  <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
+{`clawhub install botcoin-miner-skill`}
+                  </pre>
+                  <button
+                    onClick={() => handleCopySkill("clawhub install botcoin-miner-skill", "clawhub")}
+                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                  >
+                    {skillCopied === "clawhub" ? "Copied ✓" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted">
+              These platforms require the <span className="text-text font-medium">Bankr skill</span> as a dependency (installed automatically). You&apos;ll still need a <a href="https://bankr.bot/api-keys" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline">Bankr API key</a>.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => { setStep(0); setPath(null); }} className="btn-ghost px-4 py-3 text-sm cursor-pointer">← Back</button>
+            <button onClick={() => setStep(2)} className="btn-primary flex-1 py-3 text-sm">
+              I installed the skill → Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Step 2: Configure and start mining */}
+      {step === 2 && path === "agent" && (
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-text mb-1">Step 2: Start Mining</h4>
+            <p className="text-xs text-text-dim leading-relaxed">
+              Tell your agent to start mining for your pool. It will handle challenges, solve them, and submit proofs automatically.
+            </p>
+          </div>
+
+          <div className="bg-black/20 rounded-lg p-4 space-y-3">
+            <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Tell your agent:</p>
+            <div className="relative">
+              <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
+{`mine botcoin for pool ${poolAddress}`}
+              </pre>
+              <button
+                onClick={() => handleCopySkill(`mine botcoin for pool ${poolAddress}`, "mine")}
+                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+              >
+                {skillCopied === "mine" ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <p className="text-[11px] text-text-dim leading-relaxed">
+              The skill reads the challenge from the coordinator, solves it with the agent&apos;s LLM, and submits the proof on-chain through your pool contract.
+            </p>
+          </div>
+
+          <div className="bg-black/20 rounded-lg p-4 space-y-2">
+            <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Make sure</p>
+            <div className="flex items-start gap-2">
+              <span className="text-success text-xs mt-0.5">▸</span>
+              <p className="text-xs text-text-dim">Your agent&apos;s Bankr wallet address matches the pool operator address</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-success text-xs mt-0.5">▸</span>
+              <p className="text-xs text-text-dim">The wallet has a small amount of ETH on Base for gas (~$0.01/tx)</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-success text-xs mt-0.5">▸</span>
+              <p className="text-xs text-text-dim">Bankr read-only mode is <span className="text-warn font-medium">disabled</span> (agent needs to submit transactions)</p>
+            </div>
+            {operatorAddress && (
+              <div className="mt-2 pt-2 border-t border-border">
+                <p className="text-[11px] text-muted">Current operator:</p>
+                <p className="text-xs text-text font-tabular break-all mt-1">{operatorAddress}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-success/5 border border-success/20 rounded-lg p-3">
+            <p className="text-xs text-success font-medium mb-1">✓ That&apos;s it!</p>
+            <p className="text-[11px] text-text-dim">
+              Once mining starts, this page will show a <span className="text-success font-semibold">Bot: Live</span> indicator when credits appear on-chain. The agent keeps mining automatically.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => setStep(1)} className="btn-ghost px-4 py-3 text-sm cursor-pointer">← Back</button>
+            <button onClick={() => setCollapsed(true)} className="btn-primary flex-1 py-3 text-sm">
+              Done ✓
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Standalone Bot Path ═══ */}
+
       {/* Step 1: Create Bankr wallet */}
-      {step === 1 && (
+      {step === 1 && path === "standalone" && (
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-text mb-1">Step 1: Create a Bankr Wallet</h4>
@@ -362,7 +545,7 @@ rm -rf frontend .git`;
           </div>
 
           <div className="flex gap-2">
-            <button onClick={() => setStep(0)} className="btn-ghost px-4 py-3 text-sm cursor-pointer">← Back</button>
+            <button onClick={() => { setStep(0); setPath(null); }} className="btn-ghost px-4 py-3 text-sm cursor-pointer">← Back</button>
             <button onClick={() => setStep(2)} className="btn-primary flex-1 py-3 text-sm">
               I have my Bankr wallet &amp; API key → Next
             </button>
@@ -371,7 +554,7 @@ rm -rf frontend .git`;
       )}
 
       {/* Step 2: LLM key */}
-      {step === 2 && (
+      {step === 2 && path === "standalone" && (
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-text mb-1">Step 2: Choose Your LLM</h4>
@@ -422,7 +605,7 @@ rm -rf frontend .git`;
       )}
 
       {/* Step 3: .env template */}
-      {step === 3 && (
+      {step === 3 && path === "standalone" && (
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-text mb-1">Step 3: Create Your .env Config</h4>
@@ -468,7 +651,7 @@ rm -rf frontend .git`;
       )}
 
       {/* Step 4: Download bot & launch */}
-      {step === 4 && (
+      {step === 4 && path === "standalone" && (
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-text mb-1">Step 4: Download &amp; Launch the Bot</h4>

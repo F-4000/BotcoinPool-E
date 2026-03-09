@@ -15,14 +15,18 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     query: { refetchInterval: refreshKey ? 3000 : false },
   });
 
-  // ── Mining: current epoch ──
-  const { data: currentEpoch } = useReadContract({
-    address: MINING_ADDRESS,
-    abi: miningAbi,
-    functionName: "currentEpoch",
+  // ── Mining: current epoch + genesis timestamp ──
+  const { data: miningBase } = useReadContracts({
+    contracts: [
+      { address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch" },
+      { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
+    ],
     query: { refetchInterval: 25_000 },
   });
-  const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
+  const currentEpoch = miningBase?.[0]?.result as bigint | undefined;
+  const genesisTs = miningBase?.[1]?.result as bigint | undefined;
+  const epochNum = currentEpoch !== undefined ? Number(currentEpoch) : undefined;
+  const genesisTsNum = genesisTs !== undefined ? Number(genesisTs) : undefined;
 
   // Batch-read getPoolInfo for every pool (multicall)
   const poolInfoQueries = useMemo(() => {
@@ -147,13 +151,14 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       </p>
 
       {/* Column headers */}
-      <div className="grid items-center gap-x-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_2rem] md:grid-cols-[6px_7rem_5rem_6rem_3rem_2.5rem_4rem_1fr_2rem]">
+      <div className="grid items-center gap-x-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_2rem] md:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_1fr_2rem]">
         <span />
         <span>Pool</span>
         <span className="hidden sm:block">State</span>
         <span className="hidden sm:block">Staked</span>
         <span className="hidden sm:block text-right">Fee</span>
         <span className="hidden sm:block text-right">Tier</span>
+        <span className="hidden sm:block text-right">Lock</span>
         <span className="hidden sm:block text-right">Credits</span>
         <span className="hidden md:block">Capacity</span>
         <span />
@@ -169,6 +174,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
               credits={mining?.credits}
               sharePercent={mining?.sharePercent}
               currentEpoch={epochNum}
+              genesisTs={genesisTsNum}
             />
           );
         })}

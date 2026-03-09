@@ -81,8 +81,8 @@ export default function BotStatus({ poolAddress, currentEpoch, compact }: BotSta
   if (compact) {
     return (
       <div className="flex items-center gap-1.5" title={`Bot: ${cfg.label} — ${cfg.desc}`}>
-        <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-        <span className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.text}`}>
+        <div className={`h-2 w-2 rounded-full shrink-0 ${cfg.dot}`} />
+        <span className={`text-[11px] font-semibold uppercase tracking-wider ${cfg.text}`}>
           {cfg.label}
         </span>
       </div>

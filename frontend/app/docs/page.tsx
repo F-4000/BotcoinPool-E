@@ -228,28 +228,32 @@ export default function DocsPage() {
           challenges and earn credits. Without a bot, the pool will not earn any rewards.
         </p>
         <p>
-          When you create a pool, the <Hl color="warn">Bot Setup Wizard</Hl> on the pool
-          detail page walks you through everything:
+          There are two ways to run a miner:
         </p>
-        <ul className="list-none space-y-2 mt-2">
-          <li className="flex items-start gap-2 text-sm text-text-dim">
-            <span className="text-base-blue-light mt-0.5">&#9656;</span>
-            <span>Create or connect an operator wallet (e.g. via <a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline">Bankr</a>)</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm text-text-dim">
-            <span className="text-base-blue-light mt-0.5">&#9656;</span>
-            <span>Choose your LLM provider (OpenAI or Anthropic)</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm text-text-dim">
-            <span className="text-base-blue-light mt-0.5">&#9656;</span>
-            <span>Generate your <Code>.env</Code> config template</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm text-text-dim">
-            <span className="text-base-blue-light mt-0.5">&#9656;</span>
-            <span>Download bot files (zip or git clone) and launch</span>
-          </li>
-        </ul>
+        <div className="grid sm:grid-cols-2 gap-3 mt-3">
+          <div className="glass-card p-4">
+            <h4 className="text-sm font-semibold text-success mb-2">🤖 AI Agent Skill</h4>
+            <p className="text-xs text-text-dim leading-relaxed">
+              Install the BOTCOIN miner skill on an AI agent (<a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline">Bankr</a>, OpenClaw, or ClawHub). The agent handles challenges, solving, and on-chain submission automatically. Easiest option.
+            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-[10px] text-muted font-tabular">Bankr: &quot;install the botcoin-miner skill from https://agentmoney.net/skill.md&quot;</p>
+              <p className="text-[10px] text-muted font-tabular">npx: npx skills add botcoinmoney/botcoin-miner-skill</p>
+              <p className="text-[10px] text-muted font-tabular">ClawHub: clawhub install botcoin-miner-skill</p>
+            </div>
+          </div>
+          <div className="glass-card p-4">
+            <h4 className="text-sm font-semibold text-base-blue-light mb-2">⚙️ Standalone Node.js Bot</h4>
+            <p className="text-xs text-text-dim leading-relaxed">
+              Download the bot files (zip or git clone), configure your <Code>.env</Code> with API keys, and run <Code>node bot.js</Code> on any machine that stays online. Full control over the mining loop.
+            </p>
+          </div>
+        </div>
         <p className="mt-3">
+          Both methods require a <Hl color="warn">Bankr API key</Hl> for on-chain transaction execution.
+          The <Hl color="warn">Bot Setup Wizard</Hl> on each pool detail page walks you through either option step by step.
+        </p>
+        <p className="mt-2">
           The pool detail page shows a live <Hl color="success">Bot Status</Hl> indicator
           that detects whether credits are flowing, so you can confirm the bot is working.
         </p>
