@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
+import { parseEther, formatUnits } from "viem";
 import { poolAbi, erc20Abi, miningAbi, bonusEpochAbi } from "@/lib/contracts";
 import { MINING_ADDRESS, BONUS_EPOCH_ADDRESS } from "@/lib/config";
 import { fmtToken, shortAddr } from "@/lib/utils";
@@ -15,6 +15,7 @@ import OperatorSetup from "@/components/OperatorSetup";
 const POOL_STATES = ["Idle", "Active", "Unstaking", "Finalized"] as const;
 type PoolStateName = (typeof POOL_STATES)[number];
 const EPOCH_DURATION = 86_400;
+const DETAIL_POLL_MS = 5_000;
 
 function fmtCountdown(seconds: number): string {
   if (seconds <= 0) return "0m";
@@ -56,7 +57,7 @@ export default function PoolPage() {
     address,
     abi: poolAbi,
     functionName: "getPoolInfo",
-    query: { refetchInterval: 25_000 },
+    query: { refetchInterval: DETAIL_POLL_MS },
   });
 
   const { data: feeBps } = useReadContract({ address, abi: poolAbi, functionName: "feeBps" });
@@ -66,7 +67,7 @@ export default function PoolPage() {
   const { data: maxStake } = useReadContract({ address, abi: poolAbi, functionName: "maxStake" });
   const { data: unstakeRequestEpoch, refetch: refetchRequestEpoch } = useReadContract({
     address, abi: poolAbi, functionName: "unstakeRequestEpoch",
-    query: { refetchInterval: 25_000 },
+    query: { refetchInterval: DETAIL_POLL_MS },
   });
 
   // ── User info ──
@@ -101,27 +102,32 @@ export default function PoolPage() {
     abi: miningAbi,
     functionName: "credits",
     args: epochNum !== undefined ? [BigInt(epochNum), address] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: DETAIL_POLL_MS },
   });
   const { data: totalCreditsData } = useReadContract({
     address: MINING_ADDRESS,
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: DETAIL_POLL_MS },
   });
 
-  // Genesis timestamp + epoch reward (batched)
+  // Genesis timestamp
   const prevEpoch = epochNum !== undefined && epochNum > 0 ? epochNum - 1 : undefined;
-  const { data: miningMeta } = useReadContracts({
-    contracts: [
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "epochReward" },
-    ],
-    query: { refetchInterval: 25_000 },
+  const { data: genesisTs } = useReadContract({
+    address: MINING_ADDRESS,
+    abi: miningAbi,
+    functionName: "genesisTimestamp",
+    query: { refetchInterval: DETAIL_POLL_MS },
   });
-  const genesisTs = miningMeta?.[0]?.result as bigint | undefined;
-  const epochReward = miningMeta?.[1]?.result as bigint | undefined;
+  // Epoch reward (requires epoch arg)
+  const { data: epochReward } = useReadContract({
+    address: MINING_ADDRESS,
+    abi: miningAbi,
+    functionName: "epochReward",
+    args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
+    query: { enabled: epochNum !== undefined, refetchInterval: DETAIL_POLL_MS },
+  });
 
   // Claim status for previous epoch (is it already claimed? is it a bonus epoch?)
   const { data: claimStatus } = useReadContracts({
@@ -130,7 +136,7 @@ export default function PoolPage() {
       { address, abi: poolAbi, functionName: "bonusEpochClaimed", args: prevEpoch !== undefined ? [BigInt(prevEpoch)] : undefined },
       { address: BONUS_EPOCH_ADDRESS, abi: bonusEpochAbi, functionName: "isBonusEpoch", args: prevEpoch !== undefined ? [BigInt(prevEpoch)] : undefined },
     ],
-    query: { enabled: prevEpoch !== undefined, refetchInterval: 25_000 },
+    query: { enabled: prevEpoch !== undefined, refetchInterval: DETAIL_POLL_MS },
   });
   const epochAlreadyClaimed = claimStatus?.[0]?.result as boolean | undefined;
   const bonusAlreadyClaimed = claimStatus?.[1]?.result as boolean | undefined;
@@ -231,13 +237,12 @@ export default function PoolPage() {
   // Cooldown countdown
   const cooldownRemaining = useMemo(() => {
     if (poolStateName !== "Unstaking" || cooldownEnd === 0n) return null;
-    const now = BigInt(Math.floor(Date.now() / 1000));
-    if (now >= cooldownEnd) return "Ready";
-    const secs = Number(cooldownEnd - now);
+    if (BigInt(now) >= cooldownEnd) return "Ready";
+    const secs = Number(cooldownEnd - BigInt(now));
     const hrs = Math.floor(secs / 3600);
     const mins = Math.floor((secs % 3600) / 60);
     return `${hrs}h ${mins}m`;
-  }, [poolStateName, cooldownEnd]);
+  }, [poolStateName, cooldownEnd, now]);
 
   // Mining stats
   const creditShare = useMemo(() => {
@@ -260,7 +265,8 @@ export default function PoolPage() {
     return Math.max(0, epochEnd - now);
   }, [genesisTs, epochNum, now]);
 
-  // Lock countdown (seconds until lock expires)
+  // Lock countdown: requestUnstake at currentEpoch >= stakeEpoch + minActiveEpochs,
+  // then executeUnstake requires one more epoch → lock runs through unlockEpoch.
   const lockEpochs = Number(minActiveEpochs);
   const stakedAt = Number(stakedAtEpoch);
   const unlockEpoch = stakedAt > 0 && lockEpochs > 0 ? stakedAt + lockEpochs : 0;
@@ -553,7 +559,7 @@ export default function PoolPage() {
                       if (!tokenBalance) return;
                       const bal = tokenBalance;
                       const max = isCapped && remaining < bal ? remaining : bal;
-                      setDepositAmount((Number(max) / 1e18).toString());
+                      setDepositAmount(formatUnits(max, 18));
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-accent hover:text-base-blue-light cursor-pointer font-medium"
                   >
@@ -569,7 +575,7 @@ export default function PoolPage() {
                           const bal = tokenBalance;
                           const raw = (bal * BigInt(pct)) / 100n;
                           const max = isCapped && remaining < raw ? remaining : raw;
-                          setDepositAmount((Number(max) / 1e18).toString());
+                          setDepositAmount(formatUnits(max, 18));
                         }}
                         className="flex-1 py-1 text-[11px] font-medium text-muted hover:text-text bg-white/5 hover:bg-white/10 rounded transition-colors cursor-pointer"
                       >
@@ -614,7 +620,7 @@ export default function PoolPage() {
                     className="pool-input w-full px-3 py-3 text-sm pr-14"
                   />
                   <button
-                    onClick={() => setWithdrawAmount((Number(userDeposit) / 1e18).toString())}
+                    onClick={() => setWithdrawAmount(formatUnits(userDeposit, 18))}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-accent hover:text-base-blue-light cursor-pointer font-medium"
                   >
                     MAX

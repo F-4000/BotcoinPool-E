@@ -6,6 +6,7 @@ import { factoryAbi, miningAbi } from "@/lib/contracts";
 import { FACTORY_ADDRESS, MINING_ADDRESS } from "@/lib/config";
 
 const EPOCH_DURATION = 86_400;
+const EPOCH_POLL_MS = 10_000;
 
 /** Compact number display */
 function compactNum(n: number): string {
@@ -24,16 +25,18 @@ export default function EpochBar() {
   });
 
   // ── Mining: current epoch + genesis ──
-  const { data: miningBase } = useReadContracts({
-    contracts: [
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch" },
-      { address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp" },
-    ],
-    query: { refetchInterval: 25_000 },
+  // Individual reads so TanStack deduplicates across EpochBar / PoolList / MiningStats
+  const { data: currentEpochRaw } = useReadContract({
+    address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch",
+    query: { refetchInterval: EPOCH_POLL_MS },
+  });
+  const { data: genesisTsRaw } = useReadContract({
+    address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp",
+    query: { refetchInterval: EPOCH_POLL_MS },
   });
 
-  const currentEpoch = miningBase?.[0]?.result as bigint | undefined;
-  const genesisTs = miningBase?.[1]?.result as bigint | undefined;
+  const currentEpoch = currentEpochRaw as bigint | undefined;
+  const genesisTs = genesisTsRaw as bigint | undefined;
   const epochNum = currentEpoch !== undefined ? Number(currentEpoch) : undefined;
 
   // ── Per-pool credits this epoch ──
@@ -49,7 +52,7 @@ export default function EpochBar() {
 
   const { data: creditResults } = useReadContracts({
     contracts: creditQueries,
-    query: { enabled: creditQueries.length > 0, refetchInterval: 25_000 },
+    query: { enabled: creditQueries.length > 0, refetchInterval: EPOCH_POLL_MS },
   });
 
   // ── Total credits this epoch ──
@@ -58,7 +61,7 @@ export default function EpochBar() {
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: EPOCH_POLL_MS },
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 
@@ -106,12 +109,12 @@ export default function EpochBar() {
 
   // ── Epoch timing ──
   const epochProgress = useMemo(() => {
-    if (genesisTs === undefined || currentEpoch === undefined) return 0;
+    if (genesisTs === undefined || epochNum === undefined) return 0;
     const now = Math.floor(Date.now() / 1000);
-    const epochStart = Number(genesisTs) + Number(currentEpoch) * EPOCH_DURATION;
+    const epochStart = Number(genesisTs) + epochNum * EPOCH_DURATION;
     const elapsed = now - epochStart;
     return Math.min(100, Math.max(0, (elapsed / EPOCH_DURATION) * 100));
-  }, [genesisTs, currentEpoch]);
+  }, [genesisTs, epochNum]);
 
   // Don't render until data is ready
   if (epochNum === undefined) return null;

@@ -7,6 +7,7 @@ import { MINING_ADDRESS, BOTCOIN_ADDRESS } from "@/lib/config";
 import { miningAbi, erc20Abi } from "@/lib/contracts";
 
 const EPOCH_DURATION = 86_400; // 24 hours in seconds
+const STATS_POLL_MS = 10_000;
 
 /** Compact number formatter: 1234567890 → "1.23B" */
 function compactNum(n: number): string {
@@ -26,45 +27,17 @@ function fmtCountdown(secs: number): string {
 }
 
 export default function MiningStats() {
-  const { data, isLoading, isError, refetch } = useReadContracts({
-    contracts: [
-      {
-        address: MINING_ADDRESS,
-        abi: miningAbi,
-        functionName: "currentEpoch",
-      },
-      {
-        address: MINING_ADDRESS,
-        abi: miningAbi,
-        functionName: "genesisTimestamp",
-      },
-      {
-        address: MINING_ADDRESS,
-        abi: miningAbi,
-        functionName: "tier1Balance",
-      },
-      {
-        address: MINING_ADDRESS,
-        abi: miningAbi,
-        functionName: "tier2Balance",
-      },
-      {
-        address: MINING_ADDRESS,
-        abi: miningAbi,
-        functionName: "tier3Balance",
-      },
-    ],
-    query: {
-      refetchInterval: 30_000, // refresh every 30s
-    },
+  // Epoch + genesis as individual reads for TanStack dedup across components
+  const { data: currentEpoch, isLoading, isError, refetch } = useReadContract({
+    address: MINING_ADDRESS, abi: miningAbi, functionName: "currentEpoch",
+    query: { refetchInterval: STATS_POLL_MS },
+  });
+  const { data: genesisTs } = useReadContract({
+    address: MINING_ADDRESS, abi: miningAbi, functionName: "genesisTimestamp",
+    query: { refetchInterval: STATS_POLL_MS },
   });
 
-  // Extract base values
-  const currentEpoch = data?.[0]?.result as bigint | undefined;
-  const genesisTs = data?.[1]?.result as bigint | undefined;
-
-  // Second batch: epoch-dependent reads
-  const epochNum = currentEpoch !== undefined ? Number(currentEpoch) : undefined;
+  const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
   // Current epoch reward
   const { data: rewardData } = useReadContracts({
@@ -78,7 +51,7 @@ export default function MiningStats() {
           },
         ]
       : [],
-    query: { enabled: epochNum !== undefined, refetchInterval: 30_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: STATS_POLL_MS },
   });
 
   // All past epoch rewards for total mined calculation
@@ -91,7 +64,7 @@ export default function MiningStats() {
           args: [BigInt(i)] as const,
         }))
       : [],
-    query: { enabled: epochNum !== undefined && epochNum > 0, refetchInterval: 60_000 },
+    query: { enabled: epochNum !== undefined && epochNum > 0, refetchInterval: STATS_POLL_MS },
   });
 
   const currentReward = rewardData?.[0]?.result as bigint | undefined;
@@ -103,7 +76,7 @@ export default function MiningStats() {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [MINING_ADDRESS],
-    query: { refetchInterval: 30_000 },
+    query: { refetchInterval: STATS_POLL_MS },
   });
 
   // Use epochReward if set, otherwise fall back to contract BOTCOIN balance

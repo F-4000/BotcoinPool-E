@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useReadContract, useAccount } from "wagmi";
-import { poolAbi } from "@/lib/contracts";
+import { useAccount } from "wagmi";
 import { fmtToken, shortAddr } from "@/lib/utils";
 import Link from "next/link";
 import BotStatus from "@/components/BotStatus";
@@ -49,41 +48,56 @@ function fmtTimeLong(seconds: number): string {
 
 interface PoolRowProps {
   address: `0x${string}`;
-  credits?: bigint;
+  poolStateNum?: number;
+  stakedInMiningWei?: string;
+  totalDepWei?: string;
+  eligible?: boolean;
+  minActiveEpochs?: number;
+  stakedAtEpoch?: number;
+  feeBps?: number;
+  operator?: `0x${string}`;
+  maxStakeWei?: string;
+  creditsWei?: string;
   sharePercent?: number;
   currentEpoch?: number;
   genesisTs?: number;
+  botStatus?: "live" | "active" | "idle" | "offline";
 }
 
-export default function PoolRow({ address, credits, sharePercent, currentEpoch, genesisTs }: PoolRowProps) {
+export default function PoolRow({
+  address,
+  poolStateNum,
+  stakedInMiningWei,
+  totalDepWei,
+  eligible,
+  minActiveEpochs,
+  stakedAtEpoch,
+  feeBps,
+  operator,
+  maxStakeWei,
+  creditsWei,
+  sharePercent,
+  currentEpoch,
+  genesisTs,
+  botStatus,
+}: PoolRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { address: walletAddr } = useAccount();
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
-  const { data: poolInfo } = useReadContract({
-    address,
-    abi: poolAbi,
-    functionName: "getPoolInfo",
-    query: { refetchInterval: 25_000 },
-  });
-  const { data: feeBps } = useReadContract({ address, abi: poolAbi, functionName: "feeBps" });
-  const { data: operator } = useReadContract({ address, abi: poolAbi, functionName: "operator" });
-  const { data: maxStake } = useReadContract({ address, abi: poolAbi, functionName: "maxStake" });
+  const stateName = POOL_STATES[poolStateNum ?? 0] ?? "Idle";
+  const stakedInMining = stakedInMiningWei ? BigInt(stakedInMiningWei) : 0n;
+  const totalDep = totalDepWei ? BigInt(totalDepWei) : 0n;
+  const maxStake = maxStakeWei ? BigInt(maxStakeWei) : undefined;
+  const credits = creditsWei ? BigInt(creditsWei) : undefined;
 
-  const poolStateNum = poolInfo?.[0] ?? 0;
-  const stateName = POOL_STATES[poolStateNum] ?? "Idle";
-  const stakedInMining = poolInfo?.[1] ?? 0n;
-  const totalDep = poolInfo?.[2] ?? 0n;
-  const eligible = poolInfo?.[5] ?? false;
-  const minActiveEpochs = poolInfo?.[8] ?? 0n;
-  const stakedAtEpoch = poolInfo?.[9] ?? 0n;
-
-  const feePercent = feeBps !== undefined ? Number(feeBps) / 100 : undefined;
+  const feePercent = feeBps !== undefined ? feeBps / 100 : undefined;
   const totalStake = totalDep;
 
-  // Lock / unlock calculation (current epoch still in progress counts as locked)
-  const lockEpochs = Number(minActiveEpochs);
-  const stakedAt = Number(stakedAtEpoch);
+  // Lock / unlock: requestUnstake at currentEpoch >= stakeEpoch + minActiveEpochs,
+  // then executeUnstake requires one more epoch → lock runs through unlockEpoch.
+  const lockEpochs = minActiveEpochs ?? 0;
+  const stakedAt = stakedAtEpoch ?? 0;
   const unlockEpoch = stakedAt > 0 && lockEpochs > 0 ? stakedAt + lockEpochs : 0;
   const epochsLeft = currentEpoch !== undefined && unlockEpoch > 0
     ? Math.max(0, unlockEpoch - currentEpoch + 1)
@@ -96,7 +110,7 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch, 
     return () => clearInterval(id);
   }, [epochsLeft, genesisTs]);
 
-  // Seconds until lock expires (end of unlockEpoch)
+  // Seconds until lock expires (end of unlockEpoch = when executeUnstake is possible)
   const lockSecondsLeft = useMemo(() => {
     if (genesisTs === undefined || epochsLeft <= 0 || unlockEpoch <= 0) return 0;
     const lockExpiresAt = genesisTs + (unlockEpoch + 1) * EPOCH_DURATION;
@@ -146,7 +160,12 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch, 
             {stateName}
           </span>
           {stateName === "Active" && currentEpoch !== undefined && (
-            <BotStatus poolAddress={address} currentEpoch={currentEpoch} compact />
+            <BotStatus
+              poolAddress={address}
+              currentEpoch={currentEpoch}
+              compact
+              statusOverride={botStatus}
+            />
           )}
         </div>
 
@@ -269,7 +288,12 @@ export default function PoolRow({ address, credits, sharePercent, currentEpoch, 
             {currentEpoch !== undefined && (
               <div>
                 <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Bot</p>
-                <BotStatus poolAddress={address} currentEpoch={currentEpoch} compact />
+                  <BotStatus
+                    poolAddress={address}
+                    currentEpoch={currentEpoch}
+                    compact
+                    statusOverride={botStatus}
+                  />
               </div>
             )}
           </div>

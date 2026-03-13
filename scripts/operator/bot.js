@@ -394,6 +394,10 @@ async function miningLoop() {
 
       const success = await mineOnce(minerAddress);
 
+      if (!success) {
+        log.debug("Mine iteration did not produce a posted receipt");
+      }
+
       if (
         stats.consecutiveFailures >= config.maxConsecutiveFailures
       ) {

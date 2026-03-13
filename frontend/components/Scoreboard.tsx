@@ -8,6 +8,8 @@ import { FACTORY_ADDRESS, MINING_ADDRESS } from "@/lib/config";
 import { shortAddr } from "@/lib/utils";
 import EpochBar from "@/components/EpochBar";
 
+const SCOREBOARD_POLL_MS = 10_000;
+
 /** Compact number display */
 function compactNum(n: number): string {
   if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
@@ -36,7 +38,7 @@ export default function Scoreboard() {
     address: MINING_ADDRESS,
     abi: miningAbi,
     functionName: "currentEpoch",
-    query: { refetchInterval: 25_000 },
+    query: { refetchInterval: SCOREBOARD_POLL_MS },
   });
   const epochNum = currentEpoch !== undefined ? Number(currentEpoch as bigint) : undefined;
 
@@ -66,7 +68,7 @@ export default function Scoreboard() {
 
   const { data: poolResults } = useReadContracts({
     contracts: poolQueries,
-    query: { enabled: poolQueries.length > 0, refetchInterval: 25_000 },
+    query: { enabled: poolQueries.length > 0, refetchInterval: SCOREBOARD_POLL_MS },
   });
 
   // ── Total credits this epoch ──
@@ -75,7 +77,7 @@ export default function Scoreboard() {
     abi: miningAbi,
     functionName: "totalCredits",
     args: epochNum !== undefined ? [BigInt(epochNum)] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
+    query: { enabled: epochNum !== undefined, refetchInterval: SCOREBOARD_POLL_MS },
   });
   const totalCredits = totalCreditsData as bigint | undefined;
 
@@ -148,11 +150,11 @@ export default function Scoreboard() {
     );
   }
 
-  if (!pools || epochNum === undefined) {
+  if (!pools || epochNum === undefined || (pools.length > 0 && !poolResults)) {
     return (
       <div className="space-y-3">
         <div className="loading-bar" />
-        {[1, 2, 3].map((i) => (
+        {Array.from({ length: pools?.length ? Math.min(pools.length, 6) : 3 }, (_, i) => (
           <div key={i} className="shimmer h-12 rounded-lg" />
         ))}
       </div>

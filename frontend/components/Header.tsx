@@ -8,6 +8,8 @@ import Link from "next/link";
 import { FACTORY_ADDRESS, BOTCOIN_ADDRESS } from "@/lib/config";
 import { erc20Abi } from "@/lib/contracts";
 
+const HEADER_POLL_MS = 5_000;
+
 /** Format a bigint token balance to a compact display string */
 function fmtBalance(value: bigint | undefined, decimals: number): string {
   if (value === undefined) return "0";
@@ -30,7 +32,7 @@ export default function Header() {
   // Fetch ETH balance
   const { data: ethBalance } = useBalance({
     address,
-    query: { enabled: isConnected, refetchInterval: 25_000 },
+    query: { enabled: isConnected, refetchInterval: HEADER_POLL_MS },
   });
 
   // Fetch BOTCOIN balance
@@ -39,7 +41,7 @@ export default function Header() {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
-    query: { enabled: isConnected && !!address, refetchInterval: 25_000 },
+    query: { enabled: isConnected && !!address, refetchInterval: HEADER_POLL_MS },
   });
 
   useEffect(() => {

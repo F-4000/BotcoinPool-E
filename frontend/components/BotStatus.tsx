@@ -15,19 +15,24 @@ const STATUS_CONFIG: Record<BotState, { label: string; dot: string; text: string
   loading: { label: "...",     dot: "bg-muted",             text: "text-muted",   desc: "Checking" },
 };
 
+const BOT_STATUS_POLL_MS = 10_000;
+
 interface BotStatusProps {
   poolAddress: `0x${string}`;
   currentEpoch?: number;
   /** Compact mode for PoolCard (just the dot + label) */
   compact?: boolean;
+  /** Optional parent-computed status to avoid extra reads */
+  statusOverride?: BotState;
 }
 
-export default function BotStatus({ poolAddress, currentEpoch, compact }: BotStatusProps) {
+export default function BotStatus({ poolAddress, currentEpoch, compact, statusOverride }: BotStatusProps) {
   const [botState, setBotState] = useState<BotState>("loading");
   const prevCreditsRef = useRef<bigint | null>(null);
   const increasedRef = useRef(false);
 
   const epochNum = currentEpoch;
+  const useOverride = !!statusOverride;
 
   // Credits this epoch
   const { data: currentCredits } = useReadContract({
@@ -35,7 +40,7 @@ export default function BotStatus({ poolAddress, currentEpoch, compact }: BotSta
     abi: miningAbi,
     functionName: "credits",
     args: epochNum !== undefined ? [BigInt(epochNum), poolAddress] : undefined,
-    query: { enabled: epochNum !== undefined, refetchInterval: 25_000 },
+    query: { enabled: !useOverride && epochNum !== undefined, refetchInterval: BOT_STATUS_POLL_MS },
   });
 
   // Credits previous epoch (to detect "was active recently")
@@ -45,21 +50,28 @@ export default function BotStatus({ poolAddress, currentEpoch, compact }: BotSta
     abi: miningAbi,
     functionName: "credits",
     args: prevEpoch !== undefined ? [BigInt(prevEpoch), poolAddress] : undefined,
-    query: { enabled: prevEpoch !== undefined },
+    query: { enabled: !useOverride && prevEpoch !== undefined },
   });
+
+  useEffect(() => {
+    if (!statusOverride) return;
+    setBotState(statusOverride);
+  }, [statusOverride]);
 
   // Detect credit increases = bot is live right now
   useEffect(() => {
+    if (useOverride) return;
     if (currentCredits === undefined) return;
 
     if (prevCreditsRef.current !== null && currentCredits > prevCreditsRef.current) {
       increasedRef.current = true;
     }
     prevCreditsRef.current = currentCredits;
-  }, [currentCredits]);
+  }, [currentCredits, useOverride]);
 
   // Determine state
   useEffect(() => {
+    if (useOverride) return;
     if (epochNum === undefined || currentCredits === undefined) {
       setBotState("loading");
       return;
@@ -74,7 +86,7 @@ export default function BotStatus({ poolAddress, currentEpoch, compact }: BotSta
     } else {
       setBotState("offline");
     }
-  }, [epochNum, currentCredits, prevEpochCredits]);
+  }, [epochNum, currentCredits, prevEpochCredits, useOverride]);
 
   const cfg = STATUS_CONFIG[botState];
 
