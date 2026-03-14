@@ -48,8 +48,8 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
   // ── Single combined multicall: pool data + mining credits + totalCredits ──
   const prevEpochNum = epochNum !== undefined && epochNum > 0 ? epochNum - 1 : undefined;
 
-  // Layout per pool: [getPoolInfo, feeBps, operator, maxStake, credits(cur), credits(prev)?]
-  const POOL_FIELDS = 4; // getPoolInfo, feeBps, operator, maxStake
+  // Layout per pool: [getPoolInfo, feeBps, operator, owner, maxStake, credits(cur), credits(prev)?]
+  const POOL_FIELDS = 5; // getPoolInfo, feeBps, operator, owner, maxStake
   const hasPrev = prevEpochNum !== undefined;
   const MINING_FIELDS = epochNum !== undefined ? (hasPrev ? 2 : 1) : 0;
   const FIELDS_PER_POOL = POOL_FIELDS + MINING_FIELDS;
@@ -65,6 +65,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       q.push({ address: addr, abi: poolAbi, functionName: "getPoolInfo" });
       q.push({ address: addr, abi: poolAbi, functionName: "feeBps" });
       q.push({ address: addr, abi: poolAbi, functionName: "operator" });
+      q.push({ address: addr, abi: poolAbi, functionName: "owner" });
       q.push({ address: addr, abi: poolAbi, functionName: "maxStake" });
       q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "credits", args: [BigInt(epochNum), addr] });
       if (hasPrev) {
@@ -139,6 +140,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       poolInfo?: PoolInfoTuple;
       feeBps?: bigint;
       operator?: `0x${string}`;
+      owner?: `0x${string}`;
       maxStake?: bigint;
     }>();
     if (!pools || !combinedResults) return map;
@@ -148,7 +150,8 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
         poolInfo: combinedResults[offset]?.result as PoolInfoTuple | undefined,
         feeBps: combinedResults[offset + 1]?.result as bigint | undefined,
         operator: combinedResults[offset + 2]?.result as `0x${string}` | undefined,
-        maxStake: combinedResults[offset + 3]?.result as bigint | undefined,
+        owner: combinedResults[offset + 3]?.result as `0x${string}` | undefined,
+        maxStake: combinedResults[offset + 4]?.result as bigint | undefined,
       });
     });
     return map;
@@ -254,6 +257,7 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
               stakedAtEpoch={poolData?.poolInfo?.[9] !== undefined ? Number(poolData.poolInfo[9]) : undefined}
               feeBps={poolData?.feeBps !== undefined ? Number(poolData.feeBps) : undefined}
               operator={poolData?.operator}
+              owner={poolData?.owner}
               maxStakeWei={poolData?.maxStake?.toString()}
               creditsWei={mining?.credits?.toString()}
               sharePercent={mining?.sharePercent}

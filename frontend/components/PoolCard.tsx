@@ -56,6 +56,7 @@ interface PoolRowProps {
   stakedAtEpoch?: number;
   feeBps?: number;
   operator?: `0x${string}`;
+  owner?: `0x${string}`;
   maxStakeWei?: string;
   creditsWei?: string;
   sharePercent?: number;
@@ -74,6 +75,7 @@ export default function PoolRow({
   stakedAtEpoch,
   feeBps,
   operator,
+  owner,
   maxStakeWei,
   creditsWei,
   sharePercent,
@@ -128,10 +130,13 @@ export default function PoolRow({
     : 0;
 
   const badge = STATE_BADGES[stateName] ?? STATE_BADGES.Idle;
-  const isOwner = !!(walletAddr && operator && walletAddr.toLowerCase() === operator.toLowerCase());
+  const isOwner = !!(walletAddr && (
+    (operator && walletAddr.toLowerCase() === operator.toLowerCase()) ||
+    (owner && walletAddr.toLowerCase() === owner.toLowerCase())
+  ));
 
   return (
-    <div className={`border-b border-border last:border-b-0 ${isOwner ? "border-l-2 border-l-base-blue-light" : ""}`}>
+    <div className={`border-b border-border last:border-b-0 ${isOwner ? "ring-1 ring-yellow-500/60" : ""}`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full grid items-center gap-x-3 px-4 py-3 hover:bg-card-hover/50 transition-colors text-left cursor-pointer grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_2rem] md:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_1fr_2rem]"
