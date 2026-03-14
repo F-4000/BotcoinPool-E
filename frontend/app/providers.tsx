@@ -19,9 +19,27 @@ const queryClient = new QueryClient({
   },
 });
 
+// BigInt ↔ JSON: wagmi returns BigInt which JSON.stringify can't handle
+function serialize(data: unknown): string {
+  return JSON.stringify(data, (_key, value) =>
+    typeof value === "bigint" ? `#bigint.${value.toString()}` : value,
+  );
+}
+function deserialize(str: string) {
+  return JSON.parse(str, (_key, value) =>
+    typeof value === "string" && value.startsWith("#bigint.")
+      ? BigInt(value.slice(8))
+      : value,
+  ) as ReturnType<typeof JSON.parse>;
+}
+
 const persister =
   typeof window !== "undefined"
-    ? createSyncStoragePersister({ storage: window.localStorage })
+    ? createSyncStoragePersister({
+        storage: window.localStorage,
+        serialize,
+        deserialize,
+      })
     : undefined;
 
 export function Providers({ children }: { children: React.ReactNode }) {
