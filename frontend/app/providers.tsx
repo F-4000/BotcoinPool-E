@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import { QueryClient, QueryClientProvider, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { WagmiProvider } from "wagmi";
 import { config } from "@/lib/config";
 import "@rainbow-me/rainbowkit/styles.css";
@@ -17,10 +19,18 @@ const queryClient = new QueryClient({
   },
 });
 
+const persister =
+  typeof window !== "undefined"
+    ? createSyncStoragePersister({ storage: window.localStorage })
+    : undefined;
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: persister!, maxAge: 5 * 60_000 }}
+      >
         <RainbowKitProvider
           theme={darkTheme({
             accentColor: "#6366f1",
@@ -30,7 +40,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         >
           {children}
         </RainbowKitProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </WagmiProvider>
   );
 }
