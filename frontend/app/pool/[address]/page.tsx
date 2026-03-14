@@ -270,6 +270,9 @@ export default function PoolPage() {
   const lockEpochs = Number(minActiveEpochs);
   const stakedAt = Number(stakedAtEpoch);
   const unlockEpoch = stakedAt > 0 && lockEpochs > 0 ? stakedAt + lockEpochs : 0;
+  const lockEpochsRemaining = epochNum !== undefined && unlockEpoch > 0
+    ? Math.max(0, unlockEpoch - epochNum)
+    : 0;
   const lockSecondsLeft = useMemo(() => {
     if (genesisTs === undefined || unlockEpoch <= 0 || epochNum === undefined) return 0;
     if (epochNum >= unlockEpoch + 1) return 0; // fully unlocked
@@ -380,14 +383,16 @@ export default function PoolPage() {
             <div>
               <span className="text-muted text-xs">Lock Period</span>
               <p className="text-text font-semibold mt-0.5">
-                {Number(minActiveEpochs)} epoch{Number(minActiveEpochs) !== 1 ? "s" : ""}
-                {poolStateName === "Active" && epochNum !== undefined && Number(stakedAtEpoch) > 0 && (
-                  <span className="text-muted text-xs font-normal ml-1">
-                    {lockSecondsLeft <= 0
-                      ? "(unlocked)"
-                      : `(${fmtCountdown(lockSecondsLeft)})`}
-                  </span>
-                )}
+                {poolStateName === "Active" && stakedAt > 0 && lockEpochsRemaining > 0
+                  ? <>{lockEpochsRemaining} of {lockEpochs} epoch{lockEpochs !== 1 ? "s" : ""}
+                      <span className="text-muted text-xs font-normal ml-1">({fmtCountdown(lockSecondsLeft)})</span>
+                    </>
+                  : poolStateName === "Active" && stakedAt > 0
+                    ? <>{lockEpochs} epoch{lockEpochs !== 1 ? "s" : ""}
+                        <span className="text-muted text-xs font-normal ml-1">(unlocked)</span>
+                      </>
+                    : <>{lockEpochs} epoch{lockEpochs !== 1 ? "s" : ""}</>
+                }
               </p>
             </div>
           )}
@@ -463,7 +468,7 @@ export default function PoolPage() {
             disabled={isRequesting || !isConnected || poolStateName !== "Active" || (unstakeRequestEpoch !== undefined && unstakeRequestEpoch > 0n) || (Number(minActiveEpochs) > 0 && epochNum !== undefined && epochNum < Number(stakedAtEpoch) + Number(minActiveEpochs))}
             className="btn-ghost py-3 text-sm font-medium text-warn border-warn/30 hover:bg-warn/10 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {isRequesting ? "Requesting..." : unstakeRequestEpoch && unstakeRequestEpoch > 0n ? "Unstake Queued" : Number(minActiveEpochs) > 0 && epochNum !== undefined && epochNum < Number(stakedAtEpoch) + Number(minActiveEpochs) ? `Locked (${Number(stakedAtEpoch) + Number(minActiveEpochs) - epochNum} epochs)` : "Request Unstake"}
+            {isRequesting ? "Requesting..." : unstakeRequestEpoch && unstakeRequestEpoch > 0n ? "Unstake Queued" : lockEpochsRemaining > 0 ? `Locked (${lockEpochsRemaining} epochs)` : "Request Unstake"}
           </button>
 
           {/* Execute Unstake (after epoch ends) */}
