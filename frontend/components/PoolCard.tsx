@@ -23,7 +23,6 @@ function compactNum(n: number): string {
   return n.toFixed(0);
 }
 
-/** Format seconds into a compact duration string */
 function fmtTime(seconds: number): string {
   if (seconds <= 0) return "0m";
   const d = Math.floor(seconds / 86400);
@@ -34,7 +33,6 @@ function fmtTime(seconds: number): string {
   return `${m}m`;
 }
 
-/** Longer format with seconds for expanded view */
 function fmtTimeLong(seconds: number): string {
   if (seconds <= 0) return "0m";
   const d = Math.floor(seconds / 86400);
@@ -96,8 +94,6 @@ export default function PoolRow({
   const feePercent = feeBps !== undefined ? feeBps / 100 : undefined;
   const totalStake = totalDep;
 
-  // Lock / unlock: requestUnstake at currentEpoch >= stakeEpoch + minActiveEpochs,
-  // then executeUnstake requires one more epoch → lock runs through unlockEpoch.
   const lockEpochs = minActiveEpochs ?? 0;
   const stakedAt = stakedAtEpoch ?? 0;
   const unlockEpoch = stakedAt > 0 && lockEpochs > 0 ? stakedAt + lockEpochs : 0;
@@ -105,14 +101,12 @@ export default function PoolRow({
     ? Math.max(0, unlockEpoch - currentEpoch + 1)
     : 0;
 
-  // Live countdown timer (ticks every second when locked)
   useEffect(() => {
     if (epochsLeft <= 0 || genesisTs === undefined) return;
     const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(id);
   }, [epochsLeft, genesisTs]);
 
-  // Seconds until lock expires (end of unlockEpoch = when executeUnstake is possible)
   const lockSecondsLeft = useMemo(() => {
     if (genesisTs === undefined || epochsLeft <= 0 || unlockEpoch <= 0) return 0;
     const lockExpiresAt = genesisTs + (unlockEpoch + 1) * EPOCH_DURATION;
@@ -123,7 +117,6 @@ export default function PoolRow({
   const capPercent = isCapped && maxStake > 0n ? Number((totalStake * 100n) / maxStake) : 0;
   const isFull = isCapped && totalStake >= maxStake;
 
-  // Tier
   const tier = stakedInMining >= 100_000_000n * 10n ** 18n ? 3
     : stakedInMining >= 50_000_000n * 10n ** 18n ? 2
     : stakedInMining >= 25_000_000n * 10n ** 18n ? 1
@@ -135,35 +128,42 @@ export default function PoolRow({
     (owner && walletAddr.toLowerCase() === owner.toLowerCase())
   ));
 
+  // Grid class shared between header and rows
+  const gridCols = "grid-cols-[1fr_2rem] sm:grid-cols-[10rem_7rem_5rem_1fr_3.5rem_3.5rem_7rem_2rem]";
+
   return (
-    <div className={`border-b border-border last:border-b-0 ${isOwner ? "border-l-[3px] border-l-yellow-400 bg-yellow-500/10" : ""}`}>
+    <div className={`border-l-[3px] ${isOwner ? "border-l-yellow-400 bg-yellow-400/[0.04]" : "border-l-transparent"}`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full grid items-center gap-x-3 px-4 py-3 hover:bg-card-hover/50 transition-colors text-left cursor-pointer grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_2rem] md:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_1fr_2rem]"
+        className={`w-full grid items-center gap-x-4 px-5 py-3 hover:bg-card-hover transition-colors text-left cursor-pointer ${gridCols}`}
       >
-        {/* Status dot */}
-        <div className={`h-1.5 w-1.5 rounded-full ${
-          stateName === "Active" ? "bg-success pulse-dot" :
-          stateName === "Unstaking" ? "bg-warn pulse-dot" :
-          stateName === "Finalized" ? "bg-base-blue-light" :
-          isFull ? "bg-danger" : "bg-muted"
-        }`} />
-
-        {/* Address */}
-        <span className="text-sm font-semibold text-base-blue-light font-tabular truncate flex items-center gap-1.5">
-          {shortAddr(address)}
+        {/* Pool: dot + address + You badge */}
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+            stateName === "Active" ? "bg-success pulse-dot" :
+            stateName === "Unstaking" ? "bg-warn pulse-dot" :
+            stateName === "Finalized" ? "bg-base-blue-light" :
+            isFull ? "bg-danger" : "bg-muted"
+          }`} />
+          <span className="text-sm font-semibold text-base-blue-light font-tabular truncate">
+            {shortAddr(address)}
+          </span>
           {isOwner && (
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-base-blue-light bg-base-blue/15 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-yellow-300 bg-yellow-400/10 px-1.5 py-0.5 rounded shrink-0">
               You
             </span>
           )}
-        </span>
+        </div>
 
-        {/* State + Bot status */}
-        <div className="hidden sm:flex flex-col gap-1">
-          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded w-fit ${badge.color} ${badge.bg}`}>
+        {/* Status: state badge only */}
+        <div className="hidden sm:flex items-center">
+          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${badge.color} ${badge.bg}`}>
             {stateName}
           </span>
+        </div>
+
+        {/* Agent: bot status */}
+        <div className="hidden sm:flex items-center">
           {stateName === "Active" && currentEpoch !== undefined && (
             <BotStatus
               poolAddress={address}
@@ -175,42 +175,26 @@ export default function PoolRow({
         </div>
 
         {/* Staked */}
-        <span className="text-sm text-text font-tabular hidden sm:block">
+        <span className="text-sm text-text font-tabular text-right hidden sm:block ml-auto">
           {fmtToken(stakedInMining)}
         </span>
 
         {/* Fee */}
-        <span className="text-xs text-warn font-medium text-right hidden sm:block">
-          {feePercent !== undefined ? `${feePercent}%` : "-"}
+        <span className="text-xs font-tabular text-right hidden sm:block">
+          {feePercent !== undefined && feePercent > 0
+            ? <span className="text-warn font-medium">{feePercent}%</span>
+            : <span className="text-muted">0%</span>}
         </span>
 
-        {/* Tier */}
-        <span className={`text-xs font-tabular text-right hidden sm:block ${tier > 0 ? "text-success font-semibold" : "text-muted"}`}>
-          {tier > 0 ? `T${tier}` : "-"}
+        {/* Share */}
+        <span className="text-xs font-tabular text-right hidden sm:block">
+          {credits && credits > 0n && sharePercent !== undefined && sharePercent > 0
+            ? <span className="text-success font-semibold">{sharePercent.toFixed(1)}%</span>
+            : <span className="text-muted">-</span>}
         </span>
 
-        {/* Lock (time remaining) */}
-        <span className={`text-xs font-tabular text-right hidden sm:block ${lockSecondsLeft > 0 ? "text-warn" : "text-muted"}`}>
-          {lockEpochs > 0
-            ? lockSecondsLeft > 0
-              ? fmtTime(lockSecondsLeft)
-              : "\u2713"
-            : "-"}
-        </span>
-
-        {/* Credits / Share */}
-        <span className={`text-xs font-tabular text-right hidden sm:block ${
-          credits && credits > 0n ? "text-success font-semibold" : "text-muted"
-        }`}>
-          {credits && credits > 0n
-            ? sharePercent !== undefined && sharePercent > 0
-              ? `${sharePercent.toFixed(1)}%`
-              : compactNum(Number(credits))
-            : "-"}
-        </span>
-
-        {/* Cap bar */}
-        <div className="hidden md:flex items-center gap-2">
+        {/* Capacity bar */}
+        <div className="hidden sm:flex items-center gap-2">
           {isCapped ? (
             <>
               <div className="flex-1 h-1 rounded-full bg-border overflow-hidden">
@@ -221,20 +205,17 @@ export default function PoolRow({
                   style={{ width: `${Math.min(capPercent, 100)}%` }}
                 />
               </div>
-              <span className={`text-[10px] font-tabular ${isFull ? "text-danger" : "text-muted"}`}>
+              <span className={`text-[10px] font-tabular shrink-0 ${isFull ? "text-danger" : "text-muted"}`}>
                 {capPercent}%
               </span>
             </>
           ) : (
-            <span className="text-[10px] text-muted">No cap</span>
+            <span className="text-[10px] text-muted ml-auto">-</span>
           )}
         </div>
 
         {/* Chevron */}
         <div className="flex items-center justify-end">
-          {isFull && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-danger bg-danger/10 px-1.5 py-0.5 rounded mr-1">Full</span>
-          )}
           <svg
             className={`w-3.5 h-3.5 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
@@ -244,9 +225,10 @@ export default function PoolRow({
         </div>
       </button>
 
+      {/* ── Expanded detail panel ── */}
       {expanded && (
-        <div className="px-4 pb-4 pt-2 bg-card/30 space-y-3">
-          {/* Row 1: Stake info */}
+        <div className="px-5 pb-4 pt-3 bg-surface space-y-3">
+          {/* Stake info */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-sm">
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Staked in Mining</p>
@@ -272,7 +254,7 @@ export default function PoolRow({
             </div>
           </div>
 
-          {/* Row 2: Mining performance */}
+          {/* Mining performance */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-sm">
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Credits</p>
@@ -287,25 +269,27 @@ export default function PoolRow({
               </p>
             </div>
             <div>
-              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Fee</p>
-              <p className="text-warn font-semibold font-tabular">{feePercent !== undefined ? `${feePercent}%` : "-"}</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Tier</p>
+              <p className={`font-semibold font-tabular ${tier > 0 ? "text-success" : "text-muted"}`}>
+                {tier > 0 ? `Tier ${tier}` : "-"}
+              </p>
             </div>
             {currentEpoch !== undefined && (
               <div>
                 <p className="text-[10px] text-muted uppercase tracking-wide mb-0.5">Bot</p>
-                  <BotStatus
-                    poolAddress={address}
-                    currentEpoch={currentEpoch}
-                    compact
-                    statusOverride={botStatus}
-                  />
+                <BotStatus
+                  poolAddress={address}
+                  currentEpoch={currentEpoch}
+                  compact
+                  statusOverride={botStatus}
+                />
               </div>
             )}
           </div>
 
           {/* Lock status bar */}
           {lockEpochs > 0 && stateName === "Active" && (
-            <div className="flex items-center gap-3 py-2 px-3 rounded bg-card/50 border border-border">
+            <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-surface border border-border">
               <span className="text-[10px] text-muted uppercase tracking-wide shrink-0">Lock</span>
               {lockSecondsLeft > 0 ? (
                 <>
@@ -336,7 +320,7 @@ export default function PoolRow({
               <p className="text-[10px] text-muted font-tabular break-all hidden sm:block">{address}</p>
             </div>
             <Link href={`/pool/${address}`} className="shrink-0 btn-ghost px-3 py-1.5 text-xs">
-              Open Pool →
+              Open Pool &rarr;
             </Link>
           </div>
         </div>

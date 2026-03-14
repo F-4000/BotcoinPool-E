@@ -355,7 +355,7 @@ rm -rf frontend .git`;
           </div>
 
           {/* Bankr */}
-          <div className="bg-black/20 rounded-lg p-4 space-y-2">
+          <div className="bg-surface rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm">🔥</span>
               <p className="text-xs font-semibold text-text">Bankr Agent</p>
@@ -365,12 +365,12 @@ rm -rf frontend .git`;
               Open <a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline font-medium">bankr.bot/terminal</a> and tell your agent:
             </p>
             <div className="relative">
-              <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
+              <pre className="bg-surface border border-border rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
 {`install the botcoin-miner skill from https://agentmoney.net/skill.md`}
               </pre>
               <button
                 onClick={() => handleCopySkill("install the botcoin-miner skill from https://agentmoney.net/skill.md", "bankr")}
-                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-surface px-2 py-1 rounded cursor-pointer"
               >
                 {skillCopied === "bankr" ? "Copied ✓" : "Copy"}
               </button>
@@ -381,19 +381,19 @@ rm -rf frontend .git`;
           </div>
 
           {/* OpenClaw / ClawHub */}
-          <div className="bg-black/20 rounded-lg p-4 space-y-3">
+          <div className="bg-surface rounded-lg p-4 space-y-3">
             <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Other agent platforms</p>
 
             <div className="space-y-2">
               <div>
                 <p className="text-xs text-text font-medium mb-1">OpenClaw (npx)</p>
                 <div className="relative">
-                  <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
+                  <pre className="bg-surface border border-border rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
 {`npx skills add botcoinmoney/botcoin-miner-skill`}
                   </pre>
                   <button
                     onClick={() => handleCopySkill("npx skills add botcoinmoney/botcoin-miner-skill", "npx")}
-                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-surface px-2 py-1 rounded cursor-pointer"
                   >
                     {skillCopied === "npx" ? "Copied ✓" : "Copy"}
                   </button>
@@ -403,12 +403,12 @@ rm -rf frontend .git`;
               <div>
                 <p className="text-xs text-text font-medium mb-1">ClawHub</p>
                 <div className="relative">
-                  <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
+                  <pre className="bg-surface border border-border rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto">
 {`clawhub install botcoin-miner-skill`}
                   </pre>
                   <button
                     onClick={() => handleCopySkill("clawhub install botcoin-miner-skill", "clawhub")}
-                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                    className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-surface px-2 py-1 rounded cursor-pointer"
                   >
                     {skillCopied === "clawhub" ? "Copied ✓" : "Copy"}
                   </button>
@@ -440,15 +440,15 @@ rm -rf frontend .git`;
             </p>
           </div>
 
-          <div className="bg-black/20 rounded-lg p-4 space-y-3">
+          <div className="bg-surface rounded-lg p-4 space-y-3">
             <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Tell your agent:</p>
             <div className="relative">
-              <pre className="bg-black/40 border border-white/10 rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
+              <pre className="bg-surface border border-border rounded-lg p-3 text-xs text-text font-tabular overflow-x-auto whitespace-pre-wrap">
 {`mine botcoin for pool ${poolAddress}`}
               </pre>
               <button
                 onClick={() => handleCopySkill(`mine botcoin for pool ${poolAddress}`, "mine")}
-                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-black/40 px-2 py-1 rounded cursor-pointer"
+                className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-surface px-2 py-1 rounded cursor-pointer"
               >
                 {skillCopied === "mine" ? "Copied ✓" : "Copy"}
               </button>
@@ -458,7 +458,7 @@ rm -rf frontend .git`;
             </p>
           </div>
 
-          <div className="bg-black/20 rounded-lg p-4 space-y-2">
+          <div className="bg-surface rounded-lg p-4 space-y-2">
             <p className="text-[11px] text-muted uppercase tracking-wide font-semibold">Make sure</p>
             <div className="flex items-start gap-2">
               <span className="text-success text-xs mt-0.5">▸</span>
@@ -508,7 +508,7 @@ rm -rf frontend .git`;
             </p>
           </div>
 
-          <div className="bg-black/20 rounded-lg p-4 space-y-3">
+          <div className="bg-surface rounded-lg p-4 space-y-3">
             <div className="flex items-start gap-3">
               <span className="text-xs font-bold text-base-blue-light bg-base-blue/10 rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">1</span>
               <div>
@@ -533,7 +533,7 @@ rm -rf frontend .git`;
           </div>
 
           {operatorAddress && (
-            <div className="bg-black/20 rounded-lg p-3">
+            <div className="bg-surface rounded-lg p-3">
               <p className="text-[11px] text-muted">Current operator:</p>
               <p className="text-xs text-text font-tabular break-all mt-1">{operatorAddress}</p>
             </div>
@@ -569,7 +569,7 @@ rm -rf frontend .git`;
               className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 llmProvider === "openai"
                   ? "bg-base-blue/15 text-base-blue-light border border-base-blue/30"
-                  : "bg-black/20 text-muted border border-border hover:text-text"
+                  : "bg-surface text-muted border border-border hover:text-text"
               }`}
             >
               OpenAI (GPT-4o)
@@ -579,7 +579,7 @@ rm -rf frontend .git`;
               className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                 llmProvider === "anthropic"
                   ? "bg-base-blue/15 text-base-blue-light border border-base-blue/30"
-                  : "bg-black/20 text-muted border border-border hover:text-text"
+                  : "bg-surface text-muted border border-border hover:text-text"
               }`}
             >
               Anthropic (Claude)
@@ -615,10 +615,10 @@ rm -rf frontend .git`;
             </p>
           </div>
 
-          <div className="bg-black/30 rounded-lg p-4 relative">
+          <div className="bg-surface rounded-lg p-4 relative">
             <button
               onClick={handleCopyTemplate}
-              className="absolute top-2 right-2 text-[10px] text-muted hover:text-text cursor-pointer bg-black/40 px-2 py-1 rounded"
+              className="absolute top-2 right-2 text-[10px] text-muted hover:text-text cursor-pointer bg-surface px-2 py-1 rounded"
             >
               {copied ? "✓ Copied" : "Copy"}
             </button>
@@ -627,7 +627,7 @@ rm -rf frontend .git`;
             </pre>
           </div>
 
-          <div className="bg-black/20 rounded-lg p-3 space-y-2">
+          <div className="bg-surface rounded-lg p-3 space-y-2">
             <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">Where to get your keys:</p>
             <p className="text-[11px] text-text-dim">
               <span className="text-base-blue-light font-medium">BANKR_API_KEY</span> → <a href="https://bankr.bot/terminal" target="_blank" rel="noopener noreferrer" className="text-base-blue-light hover:underline">bankr.bot/terminal</a> (the same agent you used as operator)
@@ -661,13 +661,13 @@ rm -rf frontend .git`;
           </div>
 
           {/* Method toggle */}
-          <div className="flex rounded-lg overflow-hidden border border-white/10">
+          <div className="flex rounded-lg overflow-hidden border border-border">
             <button
               onClick={() => setDlMethod("zip")}
               className={`flex-1 py-2 text-xs font-medium transition-colors cursor-pointer ${
                 dlMethod === "zip"
-                  ? "bg-base-blue/15 text-base-blue-light border-r border-white/10"
-                  : "bg-black/20 text-muted hover:text-text-dim border-r border-white/10"
+                  ? "bg-base-blue/15 text-base-blue-light border-r border-border"
+                  : "bg-surface text-muted hover:text-text-dim border-r border-border"
               }`}
             >
               ↓ Download .zip
@@ -677,7 +677,7 @@ rm -rf frontend .git`;
               className={`flex-1 py-2 text-xs font-medium transition-colors cursor-pointer ${
                 dlMethod === "git"
                   ? "bg-base-blue/15 text-base-blue-light"
-                  : "bg-black/20 text-muted hover:text-text-dim"
+                  : "bg-surface text-muted hover:text-text-dim"
               }`}
             >
               &gt;_ Clone via Git
@@ -717,12 +717,12 @@ rm -rf frontend .git`;
                 Run these commands to pull <span className="text-text font-medium">only the bot files</span> from the repo (requires Git):
               </p>
               <div className="relative">
-                <pre className="bg-black/40 border border-white/10 rounded-lg p-4 text-xs text-text font-tabular overflow-x-auto leading-relaxed whitespace-pre">
+                <pre className="bg-surface border border-border rounded-lg p-4 text-xs text-text font-tabular overflow-x-auto leading-relaxed whitespace-pre">
 {gitCommands}
                 </pre>
                 <button
                   onClick={handleCopyGit}
-                  className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-white/5 hover:bg-white/10 rounded px-2 py-1 transition-colors cursor-pointer"
+                  className="absolute top-2 right-2 text-[10px] text-muted hover:text-text bg-surface hover:bg-card-hover rounded px-2 py-1 transition-colors cursor-pointer"
                 >
                   {gitCopied ? "Copied ✓" : "Copy"}
                 </button>
@@ -734,7 +734,7 @@ rm -rf frontend .git`;
           )}
 
           {/* File manifest */}
-          <div className="bg-black/20 rounded-lg p-4 space-y-2">
+          <div className="bg-surface rounded-lg p-4 space-y-2">
             <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">What you get:</p>
             <div className="grid grid-cols-2 gap-1 text-[11px] font-tabular">
               <span className="text-text-dim">bot.js</span><span className="text-muted">Main mining loop</span>
@@ -751,7 +751,7 @@ rm -rf frontend .git`;
             </div>
           </div>
 
-          <div className="bg-black/30 rounded-lg p-4 space-y-3">
+          <div className="bg-surface rounded-lg p-4 space-y-3">
             <p className="text-[11px] text-muted font-semibold uppercase tracking-wide">After {dlMethod === "zip" ? "downloading" : "cloning"}:</p>
             {dlMethod === "zip" && (
               <div>

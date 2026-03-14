@@ -221,26 +221,24 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <div>
-      <p className="text-xs text-muted mb-2">
+      <p className="text-[11px] text-muted mb-3 font-tabular">
         {pools.length} pool{pools.length !== 1 ? "s" : ""} · sorted by stake
-        {epochNum !== undefined && <span className="ml-1">· epoch {epochNum}</span>}
+        {epochNum !== undefined && <span> · epoch {epochNum}</span>}
       </p>
 
       {/* Column headers */}
-      <div className="grid items-center gap-x-3 px-4 py-2 text-[10px] text-muted uppercase tracking-wider border-b border-border grid-cols-[6px_1fr_2rem] sm:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_2rem] md:grid-cols-[6px_7rem_8rem_6rem_3rem_2.5rem_3.5rem_4rem_1fr_2rem]">
-        <span />
+      <div className="grid items-center gap-x-4 px-5 py-2 text-[10px] text-muted/60 uppercase tracking-wider font-medium grid-cols-[1fr_2rem] sm:grid-cols-[10rem_7rem_5rem_1fr_3.5rem_3.5rem_7rem_2rem]">
         <span>Pool</span>
-        <span className="hidden sm:block">State</span>
-        <span className="hidden sm:block">Staked</span>
+        <span className="hidden sm:block">Status</span>
+        <span className="hidden sm:block">Agent</span>
+        <span className="hidden sm:block text-right">Staked</span>
         <span className="hidden sm:block text-right">Fee</span>
-        <span className="hidden sm:block text-right">Tier</span>
-        <span className="hidden sm:block text-right">Lock</span>
-        <span className="hidden sm:block text-right">Credits</span>
-        <span className="hidden md:block">Capacity</span>
+        <span className="hidden sm:block text-right">Share</span>
+        <span className="hidden sm:block text-right">Capacity</span>
         <span />
       </div>
 
-      <div className="glass-card overflow-hidden">
+      <div className="glass-card overflow-hidden divide-y divide-border">
         {sortedPools.map((addr) => {
           const key = addr.toLowerCase();
           const poolData = poolDataMap.get(key);

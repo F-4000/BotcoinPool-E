@@ -112,12 +112,13 @@ export default function RootLayout({
         <Providers>
           <div className="hero-gradient" />
           <div className="dot-pattern" />
+          <div className="noise-overlay" />
           <div className="min-h-screen flex flex-col relative">
             <Header />
-            <main className="flex-1 px-4 sm:px-6 py-6">
+            <main className="flex-1 px-4 sm:px-6 py-8">
               {children}
             </main>
-            <footer className="border-t border-border px-4 sm:px-6 py-3 text-xs text-muted flex justify-between">
+            <footer className="sticky bottom-0 z-20 bg-surface/95 border-t border-border px-4 sm:px-6 py-3 text-xs text-muted flex justify-between">
               <span>Botcoin Pool · Base Mainnet</span>
               <a href="https://agentmoney.net" target="_blank" rel="noopener noreferrer" className="hover:text-base-blue-light transition-colors">AgentMoney</a>
             </footer>

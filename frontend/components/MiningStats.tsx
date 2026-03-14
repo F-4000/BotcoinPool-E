@@ -233,7 +233,7 @@ function StatCard({
   }[accent];
 
   return (
-    <div className="glass-card px-4 py-3 group">
+    <div className="glass-card px-4 py-3 stat-card group hover:border-indigo/20 transition-all">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse ? "pulse-dot" : ""}`} />
         <p className="text-[11px] text-muted uppercase tracking-wide">{label}</p>

@@ -9,7 +9,7 @@ type BotState = "live" | "active" | "idle" | "offline" | "loading";
 
 const STATUS_CONFIG: Record<BotState, { label: string; dot: string; text: string; desc: string }> = {
   live:    { label: "Live",    dot: "bg-success pulse-dot", text: "text-success", desc: "Earning credits right now" },
-  active:  { label: "Active",  dot: "bg-success",           text: "text-success", desc: "Earned credits this epoch" },
+  active:  { label: "Live",    dot: "bg-success",           text: "text-success", desc: "Earned credits this epoch" },
   idle:    { label: "Idle",    dot: "bg-warn",              text: "text-warn",    desc: "No credits this epoch yet" },
   offline: { label: "Offline", dot: "bg-danger",            text: "text-danger",  desc: "No activity for 2+ epochs" },
   loading: { label: "...",     dot: "bg-muted",             text: "text-muted",   desc: "Checking" },

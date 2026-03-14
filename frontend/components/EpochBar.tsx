@@ -153,9 +153,9 @@ export default function EpochBar() {
       </div>
 
       {/* Epoch progress bar */}
-      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+      <div className="h-1.5 rounded-full bg-border/50 overflow-hidden">
         <div
-          className="h-full rounded-full bg-linear-to-r from-base-blue to-indigo transition-all"
+          className="h-full rounded-full bg-linear-to-r from-base-blue to-indigo transition-all glow-bar text-indigo"
           style={{ width: `${epochProgress}%` }}
         />
       </div>

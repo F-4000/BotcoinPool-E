@@ -331,7 +331,7 @@ export default function PoolPage() {
     }
   }
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Navigation */}
       <div className="flex items-center justify-between text-xs">
         <Link href="/" className="text-muted hover:text-base-blue-light transition-colors">
@@ -348,28 +348,30 @@ export default function PoolPage() {
       </div>
 
       {/* Pool Header Panel */}
-      <div className="gradient-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className={`h-1.5 w-1.5 rounded-full ${STATE_DOTS[poolStateName]}`} />
-          <span className="text-xs text-muted uppercase tracking-wide">Pool Details</span>
-          <span className={`ml-auto text-xs font-semibold uppercase tracking-wider ${STATE_COLORS[poolStateName]}`}>
-            {poolStateName}
-          </span>
+      <div className="gradient-border p-6 sm:p-8">
+        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-text tracking-tight">
+              Pool <span className="glow-blue">{shortAddr(address)}</span>
+            </h1>
+            <p className="text-sm text-muted mt-1.5">
+              {operator ? `Operator: ${shortAddr(operator)}` : "No operator set"} · Fee: {feePercent}%
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg ${
+              poolStateName === "Active" ? "text-success bg-success/10 border border-success/15" :
+              poolStateName === "Unstaking" ? "text-warn bg-warn/10 border border-warn/15" :
+              poolStateName === "Finalized" ? "text-base-blue-light bg-base-blue/10 border border-base-blue/15" :
+              "text-muted bg-surface border border-border"
+            }`}>
+              <div className={`h-1.5 w-1.5 rounded-full ${STATE_DOTS[poolStateName]}`} />
+              {poolStateName}
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <div>
-            <span className="text-muted text-xs">Address</span>
-            <p className="text-base-blue-light font-semibold font-tabular mt-0.5">{shortAddr(address)}</p>
-          </div>
-          <div>
-            <span className="text-muted text-xs">Operator</span>
-            <p className="text-text font-medium mt-0.5">{operator ? shortAddr(operator) : "-"}</p>
-          </div>
-          <div>
-            <span className="text-muted text-xs">Fee</span>
-            <p className="text-warn font-semibold mt-0.5">{feePercent}%</p>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
             <span className="text-muted text-xs">Pool Cap</span>
             <p className="text-text font-semibold mt-0.5">{maxStake && maxStake > 0n ? fmtToken(maxStake) : "No cap"}</p>
@@ -391,7 +393,7 @@ export default function PoolPage() {
           )}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <div className="mt-5 pt-5 border-t border-border grid grid-cols-2 sm:grid-cols-5 gap-4">
           <StatBlock label="Staked in Mining" value={fmtToken(stakedInMining)} accent />
           <StatBlock label="Total Deposits" value={fmtToken(totalDep)} />
           <StatBlock
@@ -439,7 +441,7 @@ export default function PoolPage() {
       </div>
 
       {/* Pool Lifecycle Actions */}
-      <div className="gradient-border p-5">
+      <div className="gradient-border p-6">
         <p className="text-xs text-muted uppercase tracking-wide mb-3">Pool Lifecycle</p>
         <p className="text-sm text-text-dim mb-4 leading-relaxed">
           All lifecycle actions are <span className="text-success font-medium">permissionless</span>. Anyone can trigger them.
@@ -515,10 +517,10 @@ export default function PoolPage() {
       </div>
 
       {/* Action Panels */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Deposit / Withdraw */}
-        <div className="glass-card p-5">
-          <div className="flex gap-1 mb-5 bg-black/20 rounded-lg p-1">
+        <div className="glass-card p-6">
+          <div className="flex gap-1 mb-5 bg-surface rounded-lg p-1">
             <button
               onClick={() => setActiveTab("deposit")}
               className={`flex-1 py-2 text-sm rounded-md transition-all font-medium ${
@@ -577,7 +579,7 @@ export default function PoolPage() {
                           const max = isCapped && remaining < raw ? remaining : raw;
                           setDepositAmount(formatUnits(max, 18));
                         }}
-                        className="flex-1 py-1 text-[11px] font-medium text-muted hover:text-text bg-white/5 hover:bg-white/10 rounded transition-colors cursor-pointer"
+                        className="flex-1 py-1 text-[11px] font-medium text-muted hover:text-text bg-surface hover:bg-card-hover rounded transition-colors cursor-pointer"
                       >
                         {pct === 100 ? "MAX" : `${pct}%`}
                       </button>
@@ -653,7 +655,7 @@ export default function PoolPage() {
         {/* Right column: Rewards + Triggers */}
         <div className="space-y-5">
           {/* Your Rewards */}
-          <div className="glass-card p-5">
+          <div className="glass-card p-6">
             <p className="text-xs text-muted uppercase tracking-wide mb-3">Your Rewards</p>
             <div className="flex items-end justify-between">
               <div>
@@ -673,7 +675,7 @@ export default function PoolPage() {
           </div>
 
           {/* Trustless Claim Triggers */}
-          <div className="gradient-border p-5">
+          <div className="gradient-border p-6">
             <p className="text-xs text-muted uppercase tracking-wide mb-2">Trigger Reward Claims</p>
             <p className="text-sm text-text-dim mb-4 leading-relaxed">
               Anyone can trigger these to distribute mining rewards.
@@ -702,7 +704,7 @@ export default function PoolPage() {
 
       {/* Admin Panel */}
       {isOwner && (
-        <div className="gradient-border p-5">
+        <div className="gradient-border p-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-1.5 w-1.5 rounded-full bg-warn pulse-dot" />
             <span className="text-xs text-warn uppercase tracking-wide">Admin Panel</span>

@@ -4,8 +4,7 @@ import { useState, useCallback } from "react";
 import { useAccount } from "wagmi";
 import PoolList from "@/components/PoolList";
 import CreatePool from "@/components/CreatePool";
-import MiningStats from "@/components/MiningStats";
-import EpochBar from "@/components/EpochBar";
+import Dashboard from "@/components/Dashboard";
 import { FACTORY_ADDRESS } from "@/lib/config";
 
 export default function Home() {
@@ -25,43 +24,16 @@ export default function Home() {
   const factoryReady = FACTORY_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Hero */}
-      <div className="gradient-border p-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text tracking-tight">
-              Botcoin <span className="glow-blue">Pool</span>
-            </h1>
-            <p className="text-sm text-muted mt-1">
-              Trustless pooled mining on Base. Stake any amount, earn proportional rewards.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-success pulse-dot" />
-              Base Mainnet
-            </span>
-            <span className="text-border">|</span>
-            <span className="text-muted">EIP-1271</span>
-            <span className="text-border">|</span>
-            <span className="text-muted">O(1) Gas</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Mining stats */}
-      <MiningStats />
-
-      {/* Epoch status */}
-      <EpochBar />
+    <div className="space-y-8 max-w-6xl mx-auto">
+      {/* Dashboard: hero + stats + epoch progress */}
+      <Dashboard />
 
       {/* Create pool form */}
       {showCreate && <CreatePool onCreated={handleCreated} onClose={handleCloseCreate} />}
 
       {/* Pool list */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-text">Pools</h2>
           {isConnected && factoryReady && (
             <button
