@@ -51,11 +51,12 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
   // Layout per pool: [getPoolInfo, feeBps, operator, maxStake, credits(cur), credits(prev)?]
   const POOL_FIELDS = 4; // getPoolInfo, feeBps, operator, maxStake
   const hasPrev = prevEpochNum !== undefined;
-  const MINING_FIELDS = hasPrev ? 2 : 1; // credits(cur) + credits(prev)?
+  const MINING_FIELDS = epochNum !== undefined ? (hasPrev ? 2 : 1) : 0;
   const FIELDS_PER_POOL = POOL_FIELDS + MINING_FIELDS;
 
   const combinedQueries = useMemo(() => {
-    if (!pools || pools.length === 0) return [];
+    // Wait for BOTH pools and epochNum before firing — avoids offset misalignment
+    if (!pools || pools.length === 0 || epochNum === undefined) return [];
 
     type Q = { address: `0x${string}`; abi: typeof poolAbi | typeof miningAbi; functionName: string; args?: readonly unknown[] };
     const q: Q[] = [];
@@ -65,16 +66,12 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
       q.push({ address: addr, abi: poolAbi, functionName: "feeBps" });
       q.push({ address: addr, abi: poolAbi, functionName: "operator" });
       q.push({ address: addr, abi: poolAbi, functionName: "maxStake" });
-      if (epochNum !== undefined) {
-        q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "credits", args: [BigInt(epochNum), addr] });
-        if (hasPrev) {
-          q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "credits", args: [BigInt(prevEpochNum!), addr] });
-        }
+      q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "credits", args: [BigInt(epochNum), addr] });
+      if (hasPrev) {
+        q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "credits", args: [BigInt(prevEpochNum!), addr] });
       }
     }
-    if (epochNum !== undefined) {
-      q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "totalCredits", args: [BigInt(epochNum)] });
-    }
+    q.push({ address: MINING_ADDRESS, abi: miningAbi, functionName: "totalCredits", args: [BigInt(epochNum)] });
     return q;
   }, [pools, epochNum, prevEpochNum, hasPrev]);
 
