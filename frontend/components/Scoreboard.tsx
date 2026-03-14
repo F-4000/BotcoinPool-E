@@ -150,7 +150,7 @@ export default function Scoreboard() {
     );
   }
 
-  if (!pools || epochNum === undefined || (pools.length > 0 && !poolResults)) {
+  if (!pools || epochNum === undefined) {
     return (
       <div className="space-y-3">
         <div className="loading-bar" />

@@ -216,18 +216,6 @@ export default function PoolList({ refreshKey }: { refreshKey?: number }) {
     );
   }
 
-  // Wait for pool details before rendering rows (prevents "zero data" flash on load)
-  if (!combinedResults) {
-    return (
-      <div className="space-y-2">
-        <div className="loading-bar" />
-        {Array.from({ length: Math.min(pools.length, 6) }, (_, i) => (
-          <div key={i} className="shimmer h-12 rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div>
       <p className="text-xs text-muted mb-2">
